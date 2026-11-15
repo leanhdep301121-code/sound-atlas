@@ -4,12 +4,12 @@ import { createAdminClient, AdminError, beijingInput, parseBeijing, formatBeijin
 
 const $ = id => document.getElementById(id);
 const TABLES = [
-  {node:'N3',name:'公桌 1',marker:'1',place:'左下 · 邻近实验室'},
-  {node:'N2',name:'公桌 2',marker:'2',place:'中下 · 工位区中部'},
-  {node:'N1',name:'公桌 3',marker:'3',place:'右下 · 邻近网络机房'},
-  {node:'N5',name:'公桌 A',marker:'A',place:'左上 · 邻近卫生间'},
-  {node:'D1',name:'公桌 B',marker:'B',place:'右上 · 邻近会议室'},
-  {node:'N4',name:'个人工位',marker:'N4',place:'公桌3右侧 · 东墙最南端'},
+  {node:'N3',name:'N3',marker:'N3',place:'左下 · 邻近实验室'},
+  {node:'N2',name:'N2',marker:'N2',place:'中下 · 工位区中部'},
+  {node:'N1',name:'N1',marker:'N1',place:'右下 · 邻近网络机房'},
+  {node:'N5',name:'N5',marker:'N5',place:'左上 · 邻近卫生间'},
+  {node:'D1',name:'D1',marker:'D1',place:'右上 · 邻近会议室'},
+  {node:'N4',name:'个人工位',marker:'N4',place:'N1 右侧 · 东墙最南端'},
   {node:'D2',name:'宿舍 D2',marker:'D2',place:'宿舍 · 独立观测，不参与二层热力'},
 ];
 const names = Object.fromEntries(TABLES.map(table => [table.node,table.name]));
