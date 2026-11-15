@@ -1,0 +1,22 @@
+Sound Atlas material assets
+
+All nine JPEG texture maps in this directory are unmodified 1K files downloaded from Poly Haven.
+Poly Haven licenses its texture assets under CC0 1.0 and permits use, modification and redistribution.
+Asset license: https://polyhaven.com/license
+CC0 deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Floor - Concrete Floor Worn 001
+Source: https://polyhaven.com/a/concrete_floor_worn_001
+Authors: Dimitrios Savva (photography), Rico Cilliers (processing).
+
+Desk wood - White Oak Veneer
+Source: https://polyhaven.com/a/white_oak_veneer
+Author: Jenelle van Heerden.
+
+Wall - White Plaster 02
+Source: https://polyhaven.com/a/white_plaster_02
+Author: Rob Tuytel.
+
+Material files and integrity hashes are recorded in materials.json.
+These materials form a visualization proposal. They are not a reconstruction of verified on-site finishes.
+Color maps use sRGB. Normal and roughness maps are linear data maps. Normal maps use the OpenGL convention.

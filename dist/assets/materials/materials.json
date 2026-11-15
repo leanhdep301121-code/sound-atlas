@@ -1,0 +1,138 @@
+{
+  "floor": {
+    "colorMap": "assets/materials/floor-color.jpg",
+    "normalMap": "assets/materials/floor-normal.jpg",
+    "roughnessMap": "assets/materials/floor-roughness.jpg",
+    "source": "https://polyhaven.com/a/concrete_floor_worn_001",
+    "sourceAsset": "concrete_floor_worn_001",
+    "sourceName": "Concrete Floor Worn 001",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "authors": {
+      "Dimitrios Savva": "Photography",
+      "Rico Cilliers": "Processing"
+    },
+    "resolution": [
+      1024,
+      1024
+    ],
+    "physicalSizeMeters": [
+      3.0,
+      3.0
+    ],
+    "normalFormat": "OpenGL",
+    "colorMapColorSpace": "sRGB",
+    "dataMapsColorSpace": "none",
+    "recommendedNormalScale": [
+      0.3,
+      0.3
+    ],
+    "roughness": 0.9,
+    "metalness": 0,
+    "files": {
+      "colorMap": {
+        "bytes": 118806,
+        "sha256": "6e40c0fc908f4d66431836f5abe203f3a4eb064e88824378a91a46a26e2f464c"
+      },
+      "normalMap": {
+        "bytes": 110906,
+        "sha256": "523bd94a1be5dd2f11c2ae2b7d7c77445cf5bd9e41604db515a7c8364dcba067"
+      },
+      "roughnessMap": {
+        "bytes": 181942,
+        "sha256": "069efe4ca018e0ef61fd8cc9964395ba8272284ae239da68d7f87988e2e9f488"
+      }
+    },
+    "note": "展示材质方案，未根据现场照片复原实际材质。"
+  },
+  "wood": {
+    "colorMap": "assets/materials/wood-color.jpg",
+    "normalMap": "assets/materials/wood-normal.jpg",
+    "roughnessMap": "assets/materials/wood-roughness.jpg",
+    "source": "https://polyhaven.com/a/white_oak_veneer",
+    "sourceAsset": "white_oak_veneer",
+    "sourceName": "White Oak Veneer",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "authors": {
+      "Jenelle van Heerden": "All"
+    },
+    "resolution": [
+      1024,
+      1024
+    ],
+    "physicalSizeMeters": [
+      0.5,
+      0.5
+    ],
+    "normalFormat": "OpenGL",
+    "colorMapColorSpace": "sRGB",
+    "dataMapsColorSpace": "none",
+    "recommendedNormalScale": [
+      0.15,
+      0.15
+    ],
+    "roughness": 0.65,
+    "metalness": 0,
+    "files": {
+      "colorMap": {
+        "bytes": 595257,
+        "sha256": "8fdec14fd3c06de907693c9c3241037dc93327ad907296371a2f74a0becd8187"
+      },
+      "normalMap": {
+        "bytes": 623607,
+        "sha256": "9e8dd65e443d92107caa4cd30403d78946a8b8c5a6029e6446c7368865b1d1c0"
+      },
+      "roughnessMap": {
+        "bytes": 520649,
+        "sha256": "a8670e80f203bd031ac3c80f0f606383be51a0ee108e016fa19cad6b9bd373e7"
+      }
+    },
+    "note": "展示材质方案，未根据现场照片复原实际材质。"
+  },
+  "plaster": {
+    "colorMap": "assets/materials/plaster-color.jpg",
+    "normalMap": "assets/materials/plaster-normal.jpg",
+    "roughnessMap": "assets/materials/plaster-roughness.jpg",
+    "source": "https://polyhaven.com/a/white_plaster_02",
+    "sourceAsset": "white_plaster_02",
+    "sourceName": "White Plaster 02",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "authors": {
+      "Rob Tuytel": "All"
+    },
+    "resolution": [
+      1024,
+      1024
+    ],
+    "physicalSizeMeters": [
+      1.0,
+      1.0
+    ],
+    "normalFormat": "OpenGL",
+    "colorMapColorSpace": "sRGB",
+    "dataMapsColorSpace": "none",
+    "recommendedNormalScale": [
+      0.18,
+      0.18
+    ],
+    "roughness": 0.95,
+    "metalness": 0,
+    "files": {
+      "colorMap": {
+        "bytes": 527219,
+        "sha256": "a1ebbe091bd1ae93d2abd5de8d69f9003a8d0ee6532bcf9a87c2492c97051f23"
+      },
+      "normalMap": {
+        "bytes": 652310,
+        "sha256": "eb572ca3630d5bfde72e2601b1f02412da23ca005cd19384dced8690be4cb783"
+      },
+      "roughnessMap": {
+        "bytes": 295900,
+        "sha256": "4ff1fe957cd161b07f721fe6c28a9459c8c2e8ec65627a26c16e483a07c80d85"
+      }
+    },
+    "note": "展示材质方案，未根据现场照片复原实际材质。"
+  }
+}

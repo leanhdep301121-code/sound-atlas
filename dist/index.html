@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="description" content="让声音回到空间。探索二层五张公桌的声环境，回放声级变化，寻找适合专注的位置。">
+<title>声场 SOUND ATLAS | 让声音回到空间</title>
+<script>
+try {
+  document.documentElement.dataset.theme = localStorage.getItem('sound-atlas-theme') === 'dark' ? 'dark' : 'light';
+} catch { document.documentElement.dataset.theme = 'light'; }
+</script>
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
+<link rel="modulepreload" href="spatial-view.js">
+<script src="data.js" defer></script><script src="live.js" defer></script><script src="heatmap.js" defer></script><script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#observatory">跳到声环境图</a>
+<header class="topbar" id="top">
+<a class="brand" href="#top" aria-label="声场首页"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>声场<span class="wordmark">SOUND ATLAS</span></span></a>
+<nav aria-label="站点导航"><a href="#observatory" class="nav-active">声环境图</a><a href="#trends">声级变化</a><a href="#study">研究方法</a><a href="collect/">数据采集</a></nav>
+<div class="nav-actions"><button type="button" class="theme-button" id="theme-toggle" aria-label="切换明暗主题">明暗</button><button type="button" class="button button-primary" id="open-data">数据来源 <span aria-hidden="true">↗</span></button></div>
+</header>
+<main>
+<section class="observatory shell" id="observatory" aria-labelledby="intro-title">
+<header class="observatory-header">
+  <div><h1 id="intro-title">二层声环境</h1><p>点选工位查看读数，沿时间轴比较声音变化。</p></div>
+  <div class="observatory-meta"><span>5 张公桌 / 5 个声级测点</span><span class="source-label" id="data-badge">等待实测</span></div>
+</header>
+<div class="spatial-workspace" data-view="spatial" id="spatial-workspace">
+<div class="live-connection" id="live-connection" data-status="connecting">
+  <div class="live-connection-main"><span class="connection-dot" aria-hidden="true"></span><strong id="live-state" role="status">连接采集端</strong><span id="live-detail">正在读取五张公桌的观测。</span></div>
+  <div class="live-connection-actions"><span id="live-updated">尚未同步</span><button type="button" id="return-live" hidden>返回实时</button><button type="button" id="refresh-live">刷新</button></div>
+  <div class="live-nodes" id="live-nodes" aria-label="测点连接状态"></div>
+</div>
+  <div class="workspace-toolbar">
+    <div class="view-controls" role="group" aria-label="平面展示方式">
+      <button type="button" id="view-plan" aria-pressed="false">原始平面</button>
+      <button type="button" id="view-spatial" aria-pressed="true">空间视图</button>
+    </div>
+    <div class="segmented" aria-label="平面图层">
+      <button type="button" id="layer-sound" aria-pressed="true">声级</button>
+      <button type="button" id="layer-heatmap" aria-pressed="false">热力</button>
+    </div>
+    <div class="zoom-controls" role="group" aria-label="平面缩放">
+      <button type="button" id="zoom-out" aria-label="缩小平面" disabled>−</button>
+      <output id="zoom-level">100%</output>
+      <button type="button" id="zoom-in" aria-label="放大平面">+</button>
+      <button type="button" id="zoom-focus">工位区</button>
+      <button type="button" id="zoom-reset">全图</button>
+      <button type="button" id="map-fullscreen" aria-pressed="false">全屏</button>
+    </div>
+  </div>
+  <div class="map-stage">
+  <div class="map-viewport" id="map-viewport" tabindex="0" role="region" aria-label="二层三维空间，可旋转、缩放和平移">
+    <div class="map-placement"><div class="plan" id="plan">
+      <canvas id="heatmap" class="heatmap-canvas" width="1000" height="446" role="img" aria-label="噪声热力插值分布" hidden></canvas>
+      <img class="floorplan-base original-image" src="assets/floorplan-2f.svg" width="1000" height="446.154" alt="二层建筑平面，按结构、门窗和家具分层显示。">
+      <canvas id="floor" width="1000" height="446" aria-hidden="true"></canvas>
+      <div class="map-points" id="map-points"></div>
+    </div></div>
+    <div id="spatial-scene"></div>
+    <div class="spatial-message" id="spatial-loading" role="status"><span>正在打开等角空间…</span></div>
+    <div class="spatial-message" id="spatial-error" role="alert" hidden><span id="spatial-error-text"></span><button type="button" class="button button-primary" id="spatial-retry">重新加载</button></div>
+  </div>
+  <div class="map-compass" id="map-compass" role="img" aria-label="指北针" hidden>
+    <div class="compass-dial" aria-hidden="true"><div class="compass-rotor"><span class="compass-north">N</span><span class="compass-needle"></span></div></div>
+    <span class="compass-caption" aria-hidden="true">北</span>
+  </div>
+  <aside class="heatmap-controls" id="heatmap-controls" aria-label="噪声分布图例与图层强度" hidden>
+    <div class="heatmap-legend" aria-label="固定声级色标，30 至 70 分贝">
+      <div class="heatmap-legend-heading"><strong>噪声分布</strong><span>插值估计 · dB(A)</span></div>
+      <div class="heatmap-colorbar">
+        <div class="heatmap-ramp" aria-hidden="true"></div>
+        <div class="heatmap-scale"><span>≥70</span><span>60</span><span>50</span><span>40</span><span>≤30</span></div>
+      </div>
+      <p id="heatmap-count">5 / 5 个测点</p>
+    </div>
+    <label class="heatmap-opacity" for="heatmap-opacity">强度 <output id="heatmap-opacity-value" for="heatmap-opacity">75%</output><input id="heatmap-opacity" type="range" min="20" max="90" step="5" value="75" aria-label="热力图层强度"></label>
+    <details class="heatmap-info"><summary>图例说明</summary><p id="heatmap-note" role="status">监测工位与内走廊的插值估计，未模拟墙体传播。</p></details>
+  </aside>
+  </div>
+  <p class="spatial-assumptions" id="spatial-assumptions">墙线与门洞按 CAD 复核；墙高 3.2 米，门窗竖向尺寸为展示设定。</p>
+  <div class="map-caption"><span id="map-caption-title">2F / 三维空间</span><span id="map-feedback" role="status">拖动旋转，滚轮缩放，右键平移</span></div>
+  <div class="workspace-readings">
+    <aside class="inspection" aria-labelledby="inspection-heading">
+      <div class="inspection-identity">
+        <div class="node-title"><span class="node-marker" id="node-marker">1</span><h2 id="inspection-heading">公桌 1</h2></div>
+        <p class="inspection-location" id="node-location">邻近未来城市实验室</p>
+        <p class="sr-only" id="node-id">数据测点 ID A</p>
+      </div>
+      <div class="inspection-value"><div class="readout"><span id="node-value">-</span><span id="node-unit">dB(A)</span></div><p class="reading-caption" id="node-metric">半小时等效 A 计权声级</p></div>
+      <div class="inspection-trend"><p id="period-label">14:30 至 15:00</p><canvas id="node-spark" width="280" height="48" aria-label="当前测点的当日变化" role="img"></canvas><p class="node-detail" id="node-detail"></p></div>
+    </aside>
+    <div class="timeline">
+      <div class="time-control"><button type="button" class="play-button" id="play" aria-label="播放时间回放"><span aria-hidden="true" id="play-symbol">▶</span><span class="sr-only" id="play-text">播放</span></button><div><label class="sr-only" for="day">观测日期</label><select id="day"></select><output id="time-output" for="time-slider">14:30</output></div></div>
+      <div class="timeline-track"><canvas id="timeline-wave" width="800" height="40" aria-hidden="true"></canvas><label class="sr-only" for="time-slider">观测时段</label><input type="range" id="time-slider" min="0" max="47" step="1" value="29"><div class="ticks" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:30</span></div></div>
+      <div class="timeline-caption"><span>一天的声音</span><small>拖动时间，观察变化</small></div>
+    </div>
+  </div>
+</div>
+<div class="comparison"><div class="comparison-heading"><h3 id="comparison-heading">同一时段的公桌</h3><p id="inspection-foot"></p></div><div id="comparison-list" class="comparison-list"></div></div><p class="sr-only" id="change-announcement" aria-live="polite"></p>
+</section>
+<section class="trends shell" id="trends" aria-labelledby="trend-heading"><div class="section-head"><div><h2 id="trend-heading">一天之中，<br>声音怎样变化？</h2><p>沿着时间轴，观察每张公桌的声级起伏。</p></div><label class="table-select" for="trend-table">查看公桌 <select id="trend-table"></select></label></div><div class="chart-panel"><div class="chart-label"><i class="legend-line" aria-hidden="true"></i><span id="chart-table-name">公桌 1</span><span class="chart-unit">声级 / dB(A)</span></div><canvas id="sound-chart" class="trend-canvas" role="img" aria-label="所选公桌当日声级折线图"></canvas><p class="chart-note">点按曲线回到相应时段。声级变化的原因需要结合现场记录判断。</p></div></section>
+<section class="study shell" id="study" aria-labelledby="study-heading"><figure class="study-photo"><img src="assets/studio.webp" width="1200" height="800" alt="开放建筑工作室的概念场景，长桌沿窗展开" loading="lazy"><figcaption>开放工位场景示意</figcaption></figure><div class="study-copy"><h2 id="study-heading">给讨论留位置，<br>也给专注留空间。</h2><p>用实测回答一个具体问题，公桌的讨论声，会影响多远的工位？</p><div class="study-notes"><details open><summary>从观测走向布局</summary><p>在公桌位置播放稳定的测试声，沿工位方向在 2、4、6、8 米测量。用衰减曲线评估公桌位置调整后的影响范围。</p></details><details><summary>采集与校准</summary><p>五个公桌声级节点同步观测七天。声级节点并排互校，并与参考声级计对照。</p></details><details><summary>图纸与数据说明</summary><p>底图来自 2F4F平面图_t3.dwg。平面已清除文字与尺寸标注，按结构、门窗、家具区分线宽和灰度。三维建筑已按原 CAD 复核墙线、门洞、卫生间布局和楼梯方向，主体墙不再降低展示。灰色单人工位、开放格架和圆端公桌参照现场照片，层高与家具竖向细部尺寸按比例估计。默认显示采集端自动同步的实测摘要，时间按北京时间显示。实时图面采用当前半小时已采集样本的声能平均，未收到有效数据时不生成读数；历史可沿时间轴回放。演示数据需手动切换，CSV 仅作后备导入。</p></details></div></div></section>
+</main>
+<footer class="shell footer"><a class="footer-brand" href="#top">声场<span>SOUND ATLAS</span></a><span>性能化与智能化建筑设计</span><a href="#top">回到顶部 ↑</a></footer>
+<dialog id="data-dialog" aria-labelledby="data-heading">
+  <div class="dialog-head"><h2 id="data-heading">数据来源</h2><form method="dialog"><button type="submit" class="button button-outline" aria-label="关闭数据来源窗口">关闭</button></form></div>
+  <p>五张公桌的观测由采集端自动同步。采集计划与数据管理仍在接收电脑上操作。</p>
+  <div class="source-options"><button type="button" class="button button-primary" id="use-live">查看实时观测</button><button type="button" class="button button-outline" id="restore-demo">查看演示数据</button></div>
+  <details class="csv-fallback"><summary>后备 CSV 导入</summary><p>导入只在当前浏览器生效，不会替换采集端的数据。时间戳需包含时区，站点按北京时间显示。</p><p class="node-mapping">模板 node 列对应公桌 1→A、2→B、3→C、A→D、B→E。</p><label for="file-input">CSV 文件</label><input id="file-input" type="file" accept=".csv,text/csv"><p id="file-help">选取后自动读取。下载模板可查看列名与示例。</p><button type="button" class="button button-outline" id="download-template">下载 CSV 模板</button></details>
+  <p id="import-status" role="status"></p>
+</dialog>
+</body></html>
