@@ -8,6 +8,9 @@ const colors = name => getComputedStyle(document.documentElement).getPropertyVal
 const mapButtons = new Map();
 const pointReadings = new Map();
 let playback = null;
+let timelinePosition = null;
+let miniChartKey = null;
+const timelineRender = SoundAtlasMotion.createFrameQueue(() => render());
 let readGeneration = 0;
 let liveSnapshot = null;
 let liveRequestFailed = false;
@@ -153,6 +156,7 @@ function applyLiveSnapshot(snapshot) {
     label: state.days[state.day]?.label, slot: state.slot, follow: followLive, id: state.table,
   });
   Object.assign(state, { days: source.days, day: source.day, slot: source.slot });
+  if(followLive)timelinePosition=null;
   fillOptions(byId('day'), state.days.map(({ label }, index) => [label, index]));
   render();
 }
@@ -172,6 +176,13 @@ function returnToLive() {
   if (dialog.open) dialog.close();
 }
 
+function updateTimelineDisplay(){
+  const cursor=SoundAtlasMotion.timelineAt(timelinePosition??state.slot);
+  byId('time-slider').value=String(cursor.position);
+  byId('time-slider').setAttribute('aria-valuetext',cursor.label+'，显示 '+clockLabel(state.slot)+' 开始的半小时观测');
+  byId('time-output').textContent=cursor.label;
+}
+
 function render() {
   const date = state.days[state.day];
   const frame = date.frames[state.slot];
@@ -179,9 +190,8 @@ function render() {
   const sound = frame.sound[selected.id];
   const connection = renderSourceStatus();
   byId('day').value = String(state.day);
-  byId('time-slider').value = String(state.slot);
-  byId('time-slider').setAttribute('aria-valuetext', clockLabel(state.slot));
-  byId('time-output').textContent = clockLabel(state.slot);
+  updateTimelineDisplay();
+
   byId('period-label').textContent = clockLabel(state.slot) + ' 至 ' + (state.slot === 47 ? '24:00' : clockLabel(state.slot + 1));
   byId('layer-sound').setAttribute('aria-pressed', state.layer === 'sound');
   byId('layer-heatmap').setAttribute('aria-pressed', state.layer === 'heatmap');
@@ -228,6 +238,9 @@ function render() {
 function drawMiniCharts(frames, selected) {
   const values = frames.map(frame => frame.sound[selected.id]);
   const spark = byId('node-spark');
+  const key=[frames,selected.id,spark.clientWidth,spark.clientHeight,byId('timeline-wave').clientWidth,colors('accent'),colors('strong-line')];
+  if(miniChartKey&&key.every((value,index)=>value===miniChartKey[index]))return;
+  miniChartKey=key;
   const width = spark.clientWidth;
   const height = spark.clientHeight;
   if (width < 1) return;
@@ -337,20 +350,34 @@ function drawCharts(frames) {
 }
 
 function setPlayback(playing) {
-  clearInterval(playback);
-  playback = playing ? setInterval(() => {
-    if (state.slot < SLOTS - 1) state.slot += 1;
-    else if (state.day < state.days.length - 1) { state.day += 1; state.slot = 0; }
-    else { setPlayback(false); return; }
-    render();
-  }, 550) : null;
-  byId('play-text').textContent = playing ? '暂停' : '播放';
-  byId('play-symbol').textContent = playing ? 'Ⅱ' : '▶';
-  byId('play').setAttribute('aria-label', playing ? '暂停时间回放' : '播放时间回放');
+  if(playback!==null)cancelAnimationFrame(playback);
+  playback=null;
+  if(playing){
+    let last=null,position=timelinePosition??state.slot;
+    const tick=now=>{
+      if(playback===null)return;
+      if(document.hidden){setPlayback(false);return;}
+      if(last!==null)position+=Math.min(100,now-last)/550;
+      last=now;
+      let dayChanged=false;
+      if(position>=SLOTS){
+        if(state.day>=state.days.length-1){timelinePosition=SLOTS-1;setPlayback(false);render();return;}
+        state.day++;position=0;dayChanged=true;
+      }
+      const cursor=SoundAtlasMotion.timelineAt(position),changed=cursor.slot!==state.slot;
+      timelinePosition=cursor.position;state.slot=cursor.slot;
+      if(changed||dayChanged)render();else updateTimelineDisplay();
+      playback=requestAnimationFrame(tick);
+    };
+    playback=requestAnimationFrame(tick);
+  }
+  byId('play-text').textContent=playing?'暂停':'播放';
+  byId('play-symbol').textContent=playing?'Ⅱ':'▶';
+  byId('play').setAttribute('aria-label',playing?'暂停时间回放':'播放时间回放');
 }
 
 function setSource(source, mode) {
-  setPlayback(false);
+  setPlayback(false);timelinePosition=null;timelineRender.cancel();
   if (mode !== 'live') livePoller?.stop();
   Object.assign(state, { days: source.days, day: source.day, slot: source.slot, mode, demo: mode === 'demo' });
   fillOptions(byId('day'), state.days.map(({ label }, index) => [label, index]));
@@ -371,15 +398,27 @@ byId('heatmap-opacity').addEventListener('input', event => {
 });
 byId('trend-table').addEventListener('change', event => { selectNode(event.target.value); announce(); });
 byId('day').addEventListener('change', event => {
-  stopFollowingLive(); setPlayback(false); state.day = Number(event.target.value); render(); announce();
+  stopFollowingLive(); setPlayback(false); state.day = Number(event.target.value); timelinePosition=null;timelineRender.cancel();render(); announce();
 });
 byId('time-slider').addEventListener('input', event => {
-  stopFollowingLive(); setPlayback(false); state.slot = Number(event.target.value); render(); announce();
+  const wasFollowing=followLive;stopFollowingLive();setPlayback(false);
+  const cursor=SoundAtlasMotion.timelineAt(Number(event.target.value));
+  timelinePosition=cursor.position;
+  const changed=state.slot!==cursor.slot;state.slot=cursor.slot;updateTimelineDisplay();
+  if(changed||wasFollowing)timelineRender.request();
 });
+byId('time-slider').addEventListener('change',()=>{timelineRender.flush();announce();});
+byId('time-slider').addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+  event.preventDefault();stopFollowingLive();setPlayback(false);
+  const next=event.key==='Home'?0:event.key==='End'?SLOTS-1:state.slot+(['ArrowRight','ArrowUp'].includes(event.key)?1:-1);
+  const cursor=SoundAtlasMotion.timelineAt(next);state.slot=cursor.slot;timelinePosition=cursor.position;updateTimelineDisplay();timelineRender.request();
+});
+byId('time-slider').addEventListener('keyup',()=>{timelineRender.flush();announce();});
 byId('play').addEventListener('click', () => {
   if (playback) { setPlayback(false); announce(); return; }
   stopFollowingLive();
-  if (state.day === state.days.length - 1 && state.slot === SLOTS - 1) { state.day = 0; state.slot = 0; render(); }
+  if (state.day === state.days.length - 1 && state.slot === SLOTS - 1) { state.day = 0; state.slot = 0; timelinePosition=null; render(); }
   setPlayback(true);
 });
 {
@@ -389,7 +428,7 @@ byId('play').addEventListener('click', () => {
     const { left, right } = chartArea(chart);
     const offset = event.clientX - chart.getBoundingClientRect().left;
     state.slot = Math.max(0, Math.min(SLOTS - 1, Math.round((offset - left) * (SLOTS - 1) / (right - left))));
-    setPlayback(false); render(); announce();
+    setPlayback(false); timelinePosition=null;timelineRender.cancel();render(); announce();
   });
 }
 
@@ -449,6 +488,9 @@ let followWorkArea = false;
 let spatialViewer = null;
 let spatialLoad = null;
 let spatialNorthAngle = null;
+setHeatmapPaintListener((canvas,version)=>{
+  if(mapView==='spatial'&&state.layer==='heatmap')spatialViewer?.updateHeatmap(canvas,version,Number(byId('heatmap-opacity').value)/100);
+});
 
 function updateCompass(angle = spatialNorthAngle) {
   const compass = byId('map-compass');
@@ -467,6 +509,7 @@ function updateSpatialView(frame, selectedId) {
     selectedId: state.highlighted ? selectedId : null,
     layer: state.layer,
     heatmapCanvas: heatmapRaster,
+    heatmapVersion: heatmapRevision,
     heatmapOpacity: Number(byId('heatmap-opacity').value) / 100,
   });
 }
@@ -678,7 +721,7 @@ livePoller = SoundAtlasLive.createPoller({
   },
 });
 livePoller.start();
-window.addEventListener('pagehide', () => livePoller.stop());
+window.addEventListener('pagehide', () => {livePoller.stop();setPlayback(false);timelineRender.cancel();stopHeatmapAnimation();});
 window.addEventListener('pageshow', event => { if (event.persisted && state.mode === 'live') livePoller.start(); });
 const mapResizeObserver = new ResizeObserver(() => {
   if (mapView === 'spatial') spatialViewer?.resize();

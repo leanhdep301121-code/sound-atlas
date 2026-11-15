@@ -103,47 +103,103 @@ for (let row = 0; row < heatmapRaster.height; row += 1) {
     heatmapCoverage[row * heatmapRaster.width + col] = insideHeatmap(x, y) ? 1 : 0;
   }
 }
-let heatmapFrame = null;
+// Precompute geometry weights once. Cache finished fields by values, not object identity.
+const heatmapFieldCache = new Map();
+let heatmapKernel = null;
+let heatmapRevision = 0;
+let heatmapTargetKey = null;
+let heatmapHasData = false;
+let heatmapTransition = null;
+let heatmapAnimation = null;
+let heatmapPaintListener = () => {};
+const heatmapBlendSource = document.createElement('canvas');
+heatmapBlendSource.width = heatmapRaster.width;
+heatmapBlendSource.height = heatmapRaster.height;
 
-function drawHeatmap(frame) {
-  const canvas = byId('heatmap');
-  const active = state.layer === 'heatmap';
-  canvas.hidden = !active;
-  byId('heatmap-controls').hidden = !active;
-  if (!active) return;
-
-  const samples = heatmapSamples(frame);
-  const enough = samples.length >= 2;
-  byId('heatmap-count').textContent = samples.length + ' / ' + TABLES.length + ' 个测点';
-  byId('heatmap-note').textContent = enough
-    ? '监测工位与内走廊的插值估计，未模拟墙体传播。'
-    : '这一时段不足两个有效声级测点，热力分布暂空。';
-  canvas.setAttribute('aria-label', enough
-    ? clockLabel(state.slot) + ' 噪声热力分布，由 ' + samples.length + ' 个测点进行声能距离加权插值，色标 30 至 70 dB(A)。'
-    : clockLabel(state.slot) + ' 热力图无足够数据。');
-
-  if (heatmapFrame !== frame) {
-    const raster = heatmapRaster.getContext('2d');
-    const pixels = raster.createImageData(heatmapRaster.width, heatmapRaster.height);
-    if (enough) {
-      for (let row = 0; row < heatmapRaster.height; row += 1) {
-        for (let col = 0; col < heatmapRaster.width; col += 1) {
-          if (!heatmapCoverage[row * heatmapRaster.width + col]) continue;
-          const x = (col + .5) / heatmapRaster.width * FLOOR_PLAN.width;
-          const y = (row + .5) / heatmapRaster.height * FLOOR_PLAN.height;
-          const color = heatmapColor(heatmapLevel(x, y, samples));
-          const offset = (row * heatmapRaster.width + col) * 4;
-          pixels.data.set([...color, 255], offset);
-        }
-      }
-    }
-    raster.putImageData(pixels, 0, 0);
-    heatmapFrame = frame;
+function heatmapField(frame) {
+  const {min:mathMin,max:mathMax,floor:mathFloor,log10:mathLog10,round:mathRound}=Math;
+  const values = TABLES.map(node => Number.isFinite(frame.sound[node.id]) ? frame.sound[node.id] : null);
+  const key = JSON.stringify(values);
+  if (heatmapFieldCache.has(key)) {
+    const field=heatmapFieldCache.get(key);heatmapFieldCache.delete(key);heatmapFieldCache.set(key,field);return field;
   }
-
-  const ctx = prepareCanvas(canvas, FLOOR_PLAN.width, FLOOR_PLAN.height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.globalAlpha = Number(byId('heatmap-opacity').value) / 100;
-  ctx.drawImage(heatmapRaster, 0, 0, FLOOR_PLAN.width, FLOOR_PLAN.height);
-  ctx.globalAlpha = 1;
+  if (!heatmapKernel) {
+    const covered=[];
+    for(let index=0;index<heatmapCoverage.length;index++)if(heatmapCoverage[index])covered.push(index);
+    const weights=new Float64Array(covered.length*TABLES.length);
+    covered.forEach((index,pixel)=>{
+      const x=(index%heatmapRaster.width+.5)/heatmapRaster.width*FLOOR_PLAN.width;
+      const y=(mathFloor(index/heatmapRaster.width)+.5)/heatmapRaster.height*FLOOR_PLAN.height;
+      TABLES.forEach((node,n)=>{weights[pixel*TABLES.length+n]=1/mathMax(1e-12,(x-node.x)**2+(y-node.y)**2);});
+    });
+    heatmapKernel={covered,weights};
+  }
+  const samples=values.flatMap((level,index)=>level===null?[]:[{index,energy:10**(level/10)}]);
+  const canvas=document.createElement('canvas');canvas.width=heatmapRaster.width;canvas.height=heatmapRaster.height;
+  const ctx=canvas.getContext('2d');const image=ctx.createImageData(canvas.width,canvas.height);
+  if(samples.length>=2){
+    const {covered,weights}=heatmapKernel;
+    for(let pixel=0;pixel<covered.length;pixel++){
+      let energy=0,total=0;
+      for(const sample of samples){const weight=weights[pixel*TABLES.length+sample.index];energy+=weight*sample.energy;total+=weight;}
+      const level=mathMax(30,mathMin(70,10*mathLog10(energy/total)));
+      const stop=mathMin(3,mathFloor((level-30)/10)),mix=(level-HEATMAP_STOPS[stop][0])/10;
+      const low=HEATMAP_STOPS[stop][1],high=HEATMAP_STOPS[stop+1][1],offset=covered[pixel]*4;
+      for(let channel=0;channel<3;channel++)image.data[offset+channel]=mathRound(low[channel]+(high[channel]-low[channel])*mix);
+      image.data[offset+3]=255;
+    }
+  }
+  ctx.putImageData(image,0,0);
+  const field={key,canvas,count:samples.length,hasData:samples.length>=2};heatmapFieldCache.set(key,field);
+  if(heatmapFieldCache.size>24)heatmapFieldCache.delete(heatmapFieldCache.keys().next().value);
+  return field;
+}
+function setHeatmapPaintListener(listener){heatmapPaintListener=listener;}
+function paintHeatmapPlan(){
+  const canvas=byId('heatmap');
+  if(canvas.width!==heatmapRaster.width)canvas.width=heatmapRaster.width;
+  if(canvas.height!==heatmapRaster.height)canvas.height=heatmapRaster.height;
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.globalAlpha=Number(byId('heatmap-opacity').value)/100;ctx.drawImage(heatmapRaster,0,0);ctx.globalAlpha=1;
+}
+function publishHeatmapPaint(){
+  heatmapRevision++;
+  if(typeof mapView==='undefined'||mapView==='plan')paintHeatmapPlan();
+  heatmapPaintListener(heatmapRaster,heatmapRevision);
+}
+function heatmapAnimate(now){
+  heatmapAnimation=null;
+  if(!heatmapTransition)return;
+  const progress=Math.min(1,Math.max(0,(now-heatmapTransition.start)/180));
+  const ease=progress*progress*(3-2*progress);
+  const ctx=heatmapRaster.getContext('2d');ctx.clearRect(0,0,heatmapRaster.width,heatmapRaster.height);
+  ctx.globalAlpha=1;ctx.drawImage(heatmapBlendSource,0,0);
+  ctx.globalAlpha=ease;ctx.drawImage(heatmapTransition.target,0,0);ctx.globalAlpha=1;
+  publishHeatmapPaint();
+  if(progress<1)heatmapAnimation=requestAnimationFrame(heatmapAnimate);else heatmapTransition=null;
+}
+function stopHeatmapAnimation(){
+  if(heatmapAnimation!==null)cancelAnimationFrame(heatmapAnimation);
+  heatmapAnimation=null;heatmapTransition=null;
+}
+function drawHeatmap(frame) {
+  const canvas=byId('heatmap'),active=state.layer==='heatmap';
+  canvas.hidden=!active;byId('heatmap-controls').hidden=!active;
+  if(!active){stopHeatmapAnimation();heatmapTargetKey=null;heatmapHasData=false;return;}
+  const field=heatmapField(frame);
+  byId('heatmap-count').textContent=field.count+' / '+TABLES.length+' 个测点';
+  byId('heatmap-note').textContent=field.hasData?'监测工位与内走廊的插值估计，未模拟墙体传播。颜色渐变仅用于切换效果，读数仍为所选半小时的实测统计。':'这一时段不足两个有效声级测点，热力分布暂空。';
+  canvas.setAttribute('aria-label',field.hasData?clockLabel(state.slot)+' 噪声热力分布，由 '+field.count+' 个测点进行声能距离加权插值。':clockLabel(state.slot)+' 热力图无足够数据。');
+  if(field.key!==heatmapTargetKey){
+    const animate=heatmapHasData&&field.hasData&&!document.hidden&&!(typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+    stopHeatmapAnimation();
+    if(animate){
+      const from=heatmapBlendSource.getContext('2d');from.clearRect(0,0,heatmapBlendSource.width,heatmapBlendSource.height);from.drawImage(heatmapRaster,0,0);
+      heatmapTransition={start:performance.now(),target:field.canvas};heatmapAnimation=requestAnimationFrame(heatmapAnimate);
+    }else{
+      const ctx=heatmapRaster.getContext('2d');ctx.clearRect(0,0,heatmapRaster.width,heatmapRaster.height);ctx.drawImage(field.canvas,0,0);publishHeatmapPaint();
+    }
+    heatmapTargetKey=field.key;heatmapHasData=field.hasData;
+  }
+  if(typeof mapView==='undefined'||mapView==='plan')paintHeatmapPlan();
 }

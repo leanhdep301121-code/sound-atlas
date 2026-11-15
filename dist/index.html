@@ -12,7 +12,7 @@ try {
 <link rel="stylesheet" href="styles.css">
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
 <link rel="modulepreload" href="spatial-view.js">
-<script src="data.js" defer></script><script src="live.js" defer></script><script src="heatmap.js" defer></script><script src="app.js" defer></script>
+<script src="data.js" defer></script><script src="live.js" defer></script><script src="motion.js" defer></script><script src="heatmap.js" defer></script><script src="app.js" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#observatory">跳到声环境图</a>
@@ -94,8 +94,8 @@ try {
     </aside>
     <div class="timeline">
       <div class="time-control"><button type="button" class="play-button" id="play" aria-label="播放时间回放"><span aria-hidden="true" id="play-symbol">▶</span><span class="sr-only" id="play-text">播放</span></button><div><label class="sr-only" for="day">观测日期</label><select id="day"></select><output id="time-output" for="time-slider">14:30</output></div></div>
-      <div class="timeline-track"><canvas id="timeline-wave" width="800" height="40" aria-hidden="true"></canvas><label class="sr-only" for="time-slider">观测时段</label><input type="range" id="time-slider" min="0" max="47" step="1" value="29"><div class="ticks" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:30</span></div></div>
-      <div class="timeline-caption"><span>一天的声音</span><small>拖动时间，观察变化</small></div>
+      <div class="timeline-track"><canvas id="timeline-wave" width="800" height="40" aria-hidden="true"></canvas><label class="sr-only" for="time-slider">观测时段</label><input type="range" id="time-slider" min="0" max="47" step="0.01" value="29"><div class="ticks" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:30</span></div></div>
+      <div class="timeline-caption"><span>一天的声音</span><small>半小时统计 · 平滑回放</small></div>
     </div>
   </div>
 </div>

@@ -127,7 +127,7 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
   let currentWidth = 1;
   let currentHeight = 1;
   let currentHeatmap = null;
-  let lastHeatmapFrame = null;
+  let lastHeatmapVersion = null;
   let heatTexture = null;
   let bounds = null;
   let fitted = false;
@@ -428,6 +428,16 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
     throw new Error(error.message || '三维视图加载失败，请刷新后重试。');
   }
 
+  function updateHeatmap(canvas,version,opacity=.75){
+    if(disposed||!heatPlane.visible||!canvas)return;
+    if(currentHeatmap!==canvas){
+      heatTexture?.dispose();heatTexture=new THREE.CanvasTexture(canvas);heatTexture.colorSpace=THREE.SRGBColorSpace;
+      heatMaterial.map=heatTexture;heatMaterial.needsUpdate=true;currentHeatmap=canvas;lastHeatmapVersion=null;
+    }
+    if(lastHeatmapVersion!==version){heatTexture.needsUpdate=true;lastHeatmapVersion=version;}
+    heatMaterial.opacity=Math.max(0,Math.min(1,opacity));invalidate();
+  }
+
   return {
     setVisible(nextVisible) {
       visible = Boolean(nextVisible);
@@ -439,7 +449,8 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
       if (visible) { syncTheme(); resize(); invalidate(); }
     },
     resize,
-    update({ frame, selectedId, layer, heatmapCanvas, heatmapOpacity = .75 }) {
+    updateHeatmap,
+    update({ frame, selectedId, layer, heatmapCanvas, heatmapVersion = frame, heatmapOpacity = .75 }) {
       if (disposed) return;
       syncTheme();
       if (!frame) return;
@@ -456,22 +467,7 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
         badge.style.background = selected ? '#ffffff25' : 'var(--paper)';
       }
       heatPlane.visible = layer === 'heatmap' && Boolean(heatmapCanvas);
-      if (heatPlane.visible) {
-        if (currentHeatmap !== heatmapCanvas) {
-          heatTexture?.dispose();
-          heatTexture = new THREE.CanvasTexture(heatmapCanvas);
-          heatTexture.colorSpace = THREE.SRGBColorSpace;
-          heatMaterial.map = heatTexture;
-          heatMaterial.needsUpdate = true;
-          currentHeatmap = heatmapCanvas;
-          lastHeatmapFrame = null;
-        }
-        if (lastHeatmapFrame !== frame) {
-          heatTexture.needsUpdate = true;
-          lastHeatmapFrame = frame;
-        }
-        heatMaterial.opacity = Math.max(0, Math.min(1, heatmapOpacity));
-      }
+      if (heatPlane.visible) updateHeatmap(heatmapCanvas,heatmapVersion,heatmapOpacity);
       invalidate();
     },
     zoomBy(factor) {
