@@ -91,7 +91,7 @@ def exchange(endpoint, token, payload):
 
 
 class RemoteControl:
-    def __init__(self, receiver, config_path=None, *, journal_path=None, interval=5, transport=exchange, clock=time.time):
+    def __init__(self, receiver, config_path=None, *, journal_path=None, interval=1, transport=exchange, clock=time.time):
         self.receiver = receiver
         self.config_path = Path(config_path) if config_path else Path(receiver.DB_PATH).with_name("live_bridge_config.json")
         self.journal_path = Path(journal_path) if journal_path else Path(receiver.DB_PATH).with_name("remote_commands.db")
@@ -120,6 +120,8 @@ class RemoteControl:
         self.calibration = Calibration(receiver, clock=clock)
         self._state_cache = None
         self._state_cache_time = 0
+        self._overview_cache = None
+        self._overview_cache_time = 0
         self._closed = False
         self._last_journal_maintenance = None
         self._maintain_journal(force=True)
@@ -186,10 +188,14 @@ class RemoteControl:
 
     def management_state(self, *, force=False):
         now = self._clock()
-        if not force and self._state_cache is not None and now - self._state_cache_time < 5:
+        if not force and self._state_cache is not None and now - self._state_cache_time < 1:
             return self._state_cache
         receiver = self.receiver
-        overview = receiver.api_overview()
+        # Keep record-count scans at 5s while fresh telemetry and commands run at 1s.
+        if force or self._overview_cache is None or now-self._overview_cache_time >= 5:
+            self._overview_cache = receiver.api_overview()
+            self._overview_cache_time = now
+        overview = self._overview_cache
         # Whitelist fields: receiver internals, network addresses and credentials never cross the relay.
         safe_overview = {key: overview[key] for key in ("nodes", "exclusions", "plan", "now", "reasons", "colors", "backups") if key in overview}
         with receiver.db_lock:
@@ -343,6 +349,7 @@ class RemoteControl:
 
     def _changed(self):
         self._state_cache = None
+        self._overview_cache = None
         bridge = getattr(self.receiver, "SYNC_BRIDGE", None)
         if bridge:
             bridge.invalidate()
@@ -562,5 +569,5 @@ class RemoteControl:
             immediate = self.poll_once()
             # Keep a short activity window so paged exports need not wait ten
             # seconds between the browser receiving a page and queuing its next.
-            delay = .25 if immediate else .5 if not self._failures and self._clock() < self._active_until else min(60, self.interval * 2 ** min(max(self._failures - 1, 0), 4))
+            delay = .25 if immediate else .5 if not self._failures and self._clock() < self._active_until else min(60, self.interval * 2 ** min(max(self._failures - 1, 0), 6))
             self._stop.wait(delay)

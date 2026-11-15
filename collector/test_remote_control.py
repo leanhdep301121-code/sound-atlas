@@ -65,6 +65,31 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(stopped['status'],'done')
         self.assertGreater(self.receiver.get_plan()[2],int(time.time()*1000))
 
+    def test_one_second_state_refresh_keeps_heavy_counts_cached_and_invalidates_on_change(self):
+        calls={'overview':0,'telemetry':0}
+        original=self.receiver.api_overview
+        def overview():
+            calls['overview']+=1
+            return original()
+        self.receiver.api_overview=overview
+        original_telemetry=self.worker.live_telemetry
+        def telemetry(now):
+            calls['telemetry']+=1
+            return original_telemetry(now)
+        self.worker.live_telemetry=telemetry
+        now=self.now
+        self.worker._clock=lambda:now
+        self.worker.management_state()
+        now+=.5;self.worker.management_state()
+        self.assertEqual(calls,{'overview':1,'telemetry':1})
+        now+=.6;self.worker.management_state()
+        self.assertEqual(calls,{'overview':1,'telemetry':2})
+        now+=4;self.worker.management_state()
+        self.assertEqual(calls,{'overview':2,'telemetry':3})
+        self.worker._changed();self.worker.management_state()
+        self.assertEqual(calls,{'overview':3,'telemetry':4})
+        self.assertEqual(self.worker.interval,1)
+
     def test_read_state_contains_no_ip_and_correct_mapping(self):
         self.receiver.conn.execute('INSERT INTO nodes(node,last_seen,ip,cfg_ver,mic,synced) VALUES(?,?,?,?,?,?)',('N1',time.time(),'192.168.1.99',0,0,1))
         self.receiver.conn.commit()

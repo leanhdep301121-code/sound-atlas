@@ -84,7 +84,7 @@ function renderMonitor() {
   $('online-count').textContent=items.filter(item=>item.online).length+' / '+TABLES.length;
   $('fresh-count').textContent=items.filter(item=>item.fresh).length+' / '+TABLES.length;
   $('monitor-clock').textContent=monitorTime.format(now)+' 北京时间';
-  $('monitor-refresh').textContent=refreshFailed?'正在重连':statePending?'检查更新…':Math.max(0,5-Math.floor((now-lastRefreshAt)/1000))+' 秒后检查';
+  $('monitor-refresh').textContent=refreshFailed?'正在重连':statePending?'检查更新…':'每秒检查更新';
   const issues=items.filter(item=>!item.fresh);
   $('monitor-alert').hidden=!issues.length;
   $('monitor-alert').textContent=!connected?'采集端暂未连接。下方为已收到的历史数据，恢复连接后自动更新。':issues.map(item=>item.table.name+'：'+item.status).join('；');
@@ -464,7 +464,7 @@ async function purge(mode) {
 }
 $('purge-range').addEventListener('click',()=>purge('range'));$('purge-outside').addEventListener('click',()=>purge('outside_plan'));
 
-setInterval(()=>refreshState(true),5000);
+setInterval(()=>refreshState(true),1000);
 setInterval(()=>{if(authenticated&&!document.hidden){renderMonitor();renderCalibration();}},1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshState(true);});
 (async()=>{try{const session=await client.session();if(!session.authenticated){showLogin();return;}authenticated=true;$('login-panel').hidden=true;$('admin-app').hidden=false;$('logout').hidden=false;await refreshState();}catch(error){showLogin(errorMessage(error));}})();
