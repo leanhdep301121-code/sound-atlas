@@ -7,6 +7,7 @@ const FLOOR_ORIENTATION = { northBearingDegrees: 0 };
 const TABLES = [
   {
     "id": "A",
+    "device": "N3",
     "marker": "1",
     "name": "公桌 1",
     "location": "图纸下侧工位区，邻近未来城市实验室",
@@ -17,6 +18,7 @@ const TABLES = [
   },
   {
     "id": "B",
+    "device": "N2",
     "marker": "2",
     "name": "公桌 2",
     "location": "图纸下侧工位区，中部",
@@ -27,6 +29,7 @@ const TABLES = [
   },
   {
     "id": "C",
+    "device": "N1",
     "marker": "3",
     "name": "公桌 3",
     "location": "图纸下侧工位区，邻近原有网络机房",
@@ -37,6 +40,7 @@ const TABLES = [
   },
   {
     "id": "D",
+    "device": "N5",
     "marker": "A",
     "name": "公桌 A",
     "location": "图纸上侧工位区，邻近卫生间",
@@ -47,6 +51,7 @@ const TABLES = [
   },
   {
     "id": "E",
+    "device": "D1",
     "marker": "B",
     "name": "公桌 B",
     "location": "图纸上侧工位区，邻近小会议室",
@@ -57,8 +62,9 @@ const TABLES = [
   },
   {
     "id": "D1",
-    "marker": "D1",
-    "name": "工位 D1",
+    "device": "N4",
+    "marker": "N4",
+    "name": "个人工位",
     "location": "公桌3右侧，东墙最南端单人工位，邻近右下休息区",
     "kind": "personal",
     "x": 617.582615,
@@ -68,7 +74,7 @@ const TABLES = [
   }
 ];
 // Dormitory readings have no coordinates in the second-floor plan.
-const OBSERVATION_NODES = [...TABLES, {id:'D2',marker:'D2',name:'宿舍 D2',location:'宿舍独立测点，不参与二层热力图',kind:'remote'}];
+const OBSERVATION_NODES = [...TABLES, {id:'D2',device:'D2',marker:'D2',name:'宿舍 D2',location:'宿舍独立测点，不参与二层热力图',kind:'remote'}];
 const SLOTS = 48;
 const INITIAL_SLOT = 29;
 const weekday = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];

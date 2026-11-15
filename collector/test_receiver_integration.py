@@ -63,7 +63,7 @@ class ReceiverIntegration(unittest.TestCase):
                 handler.handle_upload()
                 receiver.SYNC_BRIDGE.invalidate()
                 d1=receiver.SYNC_BRIDGE.snapshot()
-                d1_values=[f['sound']['D1'] for d in d1['days'] for f in d['frames'] if 'D1' in f['sound']]
+                d1_values=[f['sound']['E'] for d in d1['days'] for f in d['frames'] if 'E' in f['sound']]
                 self.assertEqual(len(d1_values),1)
                 self.assertAlmostEqual(d1_values[0],10*math.log10((10**5+10**6)/2),places=3)
                 self.assertEqual(receiver.get_plan(),plan)

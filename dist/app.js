@@ -187,7 +187,7 @@ function render() {
   byId('inspection-heading').textContent = selected.name;
   byId('node-marker').textContent = selected.marker;
   byId('node-location').textContent = selected.location;
-  byId('node-id').textContent = '数据测点 ID ' + selected.id;
+  byId('node-id').textContent = '当前设备 ' + (selected.device || selected.id) + ' · 历史读数按当时位置回放';
   byId('node-value').textContent = sound?.toFixed(1) ?? '-';
   byId('node-unit').textContent = 'dB(A)';
   byId('node-metric').textContent = state.mode === 'live' && followLive ? '当前半小时累计等效声级' : '半小时等效 A 计权声级';

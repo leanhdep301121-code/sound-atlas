@@ -69,6 +69,28 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot['latest']['sound']['A'],63)
         self.assertEqual([r[0] for r in self.db.execute('SELECT laeq FROM readings ORDER BY ts_ms')],[50,60])
 
+    def test_n4_d1_swap_preserves_historical_positions_and_device_calibration(self):
+        from node_locations import SWAP_EFFECTIVE_MS
+        from calibration import initialize
+        initialize(self.db)
+        self.now=SWAP_EFFECTIVE_MS/1000+10
+        self.add('N4',(SWAP_EFFECTIVE_MS-2000)/1000,40,online=True)
+        self.add('D1',(SWAP_EFFECTIVE_MS-2000)/1000,50,online=True)
+        self.add('N4',(SWAP_EFFECTIVE_MS+2000)/1000,60,online=True)
+        self.add('D1',(SWAP_EFFECTIVE_MS+2000)/1000,70,online=True)
+        self.db.execute('INSERT INTO calibration_profiles VALUES(?,?,?,?,?)',('board-profile','run',SWAP_EFFECTIVE_MS-10000,None,json.dumps({'N4':.22,'D1':0})))
+        self.db.commit()
+        snapshot=self.builder.build(self.now)
+        self.assertEqual(snapshot['latest']['sound']['D1'],60.22)
+        self.assertEqual(snapshot['latest']['sound']['E'],70)
+        for public_id,levels in [('E',[40.22,70]),('D1',[50,60.22])]:
+            frames=[f for d in snapshot['days'] for f in d['frames'] if public_id in f['sound']]
+            count=sum(f['counts'][public_id] for f in frames)
+            mean=10*math.log10(sum(10**(f['sound'][public_id]/10)*f['counts'][public_id] for f in frames)/count)
+            self.assertEqual(count,2)
+            self.assertAlmostEqual(mean,10*math.log10(sum(10**(v/10) for v in levels)/2),places=2)
+        self.assertEqual(json.loads(self.db.execute('SELECT offsets FROM calibration_profiles').fetchone()[0]),{'N4':.22,'D1':0})
+
     def test_equal_one_second_readings_use_sound_energy(self):
         self.add("N3", self.now - 2, 50)
         self.add("N3", self.now - 1, 60)

@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from calibration import profiles, corrected
+from node_locations import CURRENT_LOCATIONS, SWAP_EFFECTIVE_MS, location_at
 from pathlib import Path
 
 
@@ -25,15 +26,7 @@ SLOT_MS = 30 * 60 * 1000
 DAY_MS = 24 * 60 * 60 * 1000
 ONLINE_SECONDS = 75
 # Confirmed by the user's physical device labels, not the ordering of TABLES.
-NODE_MAP = {
-    "N3": ("A", "公桌 1"),
-    "N2": ("B", "公桌 2"),
-    "N1": ("C", "公桌 3"),
-    "N5": ("D", "公桌 A"),
-    "N4": ("E", "公桌 B"),
-    "D1": ("D1", "工位 D1"),
-    "D2": ("D2", "宿舍 D2"),
-}
+NODE_MAP = CURRENT_LOCATIONS
 
 
 def iso_time(seconds: float | None) -> str | None:
@@ -107,7 +100,7 @@ class SnapshotBuilder:
         level = corrected(self._profiles, node, stamp, level)
         if not _valid_level(level):
             return
-        public_id = NODE_MAP[node][0]
+        public_id = location_at(node, stamp)[0]
         key = (stamp // SLOT_MS, public_id)
         energy, count = self._buckets.get(key, (0.0, 0))
         self._buckets[key] = (energy + 10 ** (level / 10), count + 1)
@@ -135,7 +128,7 @@ class SnapshotBuilder:
                     if node in NODE_MAP:
                         exclusions.setdefault(node, []).append((int(begin), int(end)))
                 self._profiles=profiles(db)
-                scope = (lower, start_ms, end_ms, version, tuple(exclusion_rows), json.dumps(self._profiles,sort_keys=True))
+                scope = (lower, start_ms, end_ms, version, SWAP_EFFECTIVE_MS, tuple(exclusion_rows), json.dumps(self._profiles,sort_keys=True))
                 row_count = db.execute("SELECT COUNT(*) FROM readings").fetchone()[0]
                 last_rowid = db.execute("SELECT COALESCE(MAX(rowid),0) FROM readings").fetchone()[0]
                 # With INSERT OR IGNORE, new committed rows advance rowid one by one.
@@ -189,7 +182,8 @@ class SnapshotBuilder:
                     live_values = {}
                     live_stamps = []
                     nodes = []
-                    for raw_id, (public_id, label) in NODE_MAP.items():
+                    for raw_id in NODE_MAP:
+                        public_id, label = location_at(raw_id, now_ms)
                         last_seen = node_rows.get(raw_id)
                         good_seen = isinstance(last_seen, (int, float)) and math.isfinite(last_seen)
                         online = good_seen and -5 <= now - last_seen <= self.online_seconds
@@ -206,7 +200,7 @@ class SnapshotBuilder:
                             (raw_id, max(lower, now_ms - self.online_seconds * 1000), upper),
                         )
                         for stamp, value in candidates:
-                            if _valid_level(value) and not self._excluded(raw_id, stamp, exclusions):
+                            if _valid_level(value) and location_at(raw_id,stamp)[0] == public_id and not self._excluded(raw_id, stamp, exclusions):
                                 adjusted=corrected(self._profiles,raw_id,stamp,value)
                                 if not _valid_level(adjusted):
                                     continue
@@ -384,7 +378,7 @@ class LiveBridge:
                 return False
             with self._lock:
                 self._last_attempt = now
-            self._set_state("syncing", "正在同步公桌与 D1 工位的声级摘要。")
+            self._set_state("syncing", "正在同步公桌与个人工位的声级摘要。")
             self._poster(config["endpoint"], config["token"], payload)
             with self._lock:
                 self._last_success = now

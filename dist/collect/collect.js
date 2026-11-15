@@ -8,8 +8,8 @@ const TABLES = [
   {node:'N2',name:'公桌 2',marker:'2',place:'中下 · 工位区中部'},
   {node:'N1',name:'公桌 3',marker:'3',place:'右下 · 邻近网络机房'},
   {node:'N5',name:'公桌 A',marker:'A',place:'左上 · 邻近卫生间'},
-  {node:'N4',name:'公桌 B',marker:'B',place:'右上 · 邻近会议室'},
-  {node:'D1',name:'工位 D1',marker:'D1',place:'公桌3右侧 · 东墙最南端'},
+  {node:'D1',name:'公桌 B',marker:'B',place:'右上 · 邻近会议室'},
+  {node:'N4',name:'个人工位',marker:'N4',place:'公桌3右侧 · 东墙最南端'},
   {node:'D2',name:'宿舍 D2',marker:'D2',place:'宿舍 · 独立观测，不参与二层热力'},
 ];
 const names = Object.fromEntries(TABLES.map(table => [table.node,table.name]));
@@ -93,7 +93,7 @@ function renderMonitor() {
     const recent=item.history.length>0;
     const last=Number.isFinite(obs.laeq)?obs.laeq.toFixed(1)+' dB(A)':'—';
     return `<article class="monitor-station" data-tone="${item.tone}" aria-label="${table.name}实时监测">
-      <header><div class="monitor-name"><span class="station-marker">${table.marker}</span><div><h3>${table.name}</h3><span>${table.node}${table.node==='D2'?' · 宿舍':table.node==='D1'?' · 个人工位':' · 声级节点'}</span></div></div><span class="monitor-status">${item.status}</span></header>
+      <header><div class="monitor-name"><span class="station-marker">${table.marker}</span><div><h3>${table.name}</h3><span>${table.node}${table.node==='D2'?' · 宿舍':table.node==='N4'?' · 个人工位':' · 声级节点'}</span></div></div><span class="monitor-status">${item.status}</span></header>
       <p class="monitor-place">${table.place}</p>
       <div class="monitor-reading"><strong>${item.value===null?'—':item.value.toFixed(1)}</strong><div><span>dB(A)</span><small>${obs.correctionDb?'相对校正 · 1 秒 LAeq':'最新 1 秒 LAeq'}</small></div></div>
       <p class="sample-age">${Number.isFinite(item.age)?'数据 '+ageLabel(item.age)+(item.fresh?'':' · 上次 '+last):'等待第一条有效观测'}</p>
@@ -220,7 +220,7 @@ function renderNodeFilters(force=false){
   document.querySelectorAll('#data-nodes input,#other-data-nodes input').forEach(input=>input.addEventListener('change',()=>{input.checked?selectedNodes.add(input.value):selectedNodes.delete(input.value);markFiltersDirty();}));
 }
 for(const id of ['range-start','range-end'])$(id).addEventListener('input',()=>{document.querySelectorAll('[data-range]').forEach(button=>button.setAttribute('aria-pressed','false'));markFiltersDirty();});
-document.querySelectorAll('[data-node-choice]').forEach(button=>button.addEventListener('click',()=>{selectedNodes=new Set(button.dataset.nodeChoice==='all'?TABLES.map(table=>table.node):button.dataset.nodeChoice==='d1'?['D1']:[]);renderNodeFilters(true);markFiltersDirty();}));
+document.querySelectorAll('[data-node-choice]').forEach(button=>button.addEventListener('click',()=>{selectedNodes=new Set(button.dataset.nodeChoice==='all'?TABLES.map(table=>table.node):button.dataset.nodeChoice==='personal'?['N4']:[]);renderNodeFilters(true);markFiltersDirty();}));
 async function refreshScopeCount(){
   if(busy||!queryIsCurrent())return;
   const ticket=++countGeneration,scope=operationScope(appliedQuery,selection,draftKey()),key=scopeKey(scope,scope.nodes);

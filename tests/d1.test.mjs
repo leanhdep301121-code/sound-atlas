@@ -11,13 +11,16 @@ for (const file of ['data.js', 'live.js', 'heatmap.js']) {
 }
 const run = expression => vm.runInContext(expression, context);
 
-test('D1 occupies the marked CAD desk and shares the same 2D and 3D coordinate transform', () => {
+test('personal workstation retains its CAD footprint after swapping device labels', () => {
   const node = run("TABLES.find(node => node.id === 'D1')");
   assert.ok(node.cadX > 105741.93 && node.cadX < 106543.81);
   assert.ok(node.cadY > 135938.32 && node.cadY < 137542.09);
   assert.ok(Math.abs(node.x - (node.cadX - 66000) / 65) < 1e-6);
   assert.ok(Math.abs(node.y - (160000 - node.cadY) / 65) < 1e-6);
   assert.equal(run('TABLES.length'), 6);
+  assert.equal(node.device, 'N4');
+  assert.equal(node.marker, 'N4');
+  assert.equal(run("TABLES.find(node=>node.id==='E').device"), 'D1');
   assert.equal(run('insideHeatmap(TABLES[5].x, TABLES[5].y)'), true);
 });
 
@@ -37,7 +40,7 @@ test('six-node ingest and public live parsing preserve D1 without changing table
       ? {sound:{C:56,D1:48},counts:{C:30,D1:20}} : {sound:{},counts:{}})}],
     latest:{timestamp:new Date(now).toISOString(),sound:{D1:49}} };
   const normalized = normalizeSnapshot(input,now);
-  assert.equal(normalized.nodes[5].label,'工位 D1');
+  assert.equal(normalized.nodes[5].label,'个人工位');
   assert.equal(normalized.nodes[2].label,'公桌3');
   context.payload = {...normalized,connected:true};
   assert.equal(run('SoundAtlasLive.normalizeSnapshot(payload).days[0].frames[32].sound.D1'),48);
