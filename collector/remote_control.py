@@ -90,7 +90,7 @@ def exchange(endpoint, token, payload):
 
 
 class RemoteControl:
-    def __init__(self, receiver, config_path=None, *, journal_path=None, interval=10, transport=exchange, clock=time.time):
+    def __init__(self, receiver, config_path=None, *, journal_path=None, interval=5, transport=exchange, clock=time.time):
         self.receiver = receiver
         self.config_path = Path(config_path) if config_path else Path(receiver.DB_PATH).with_name("live_bridge_config.json")
         self.journal_path = Path(journal_path) if journal_path else Path(receiver.DB_PATH).with_name("remote_commands.db")
@@ -145,9 +145,42 @@ class RemoteControl:
                     "last_success": _iso(self._last_success) if self._last_success else None,
                     "error": self._last_error}
 
+    def live_telemetry(self, now):
+        """Bounded five-minute, valid, non-excluded sound observations for six nodes."""
+        receiver = self.receiver
+        now_ms = int(now * 1000)
+        start_ms = now_ms - 300_000
+        result = []
+        with receiver.db_lock:
+            for node in receiver.EXPECTED_NODES:
+                rows = receiver.conn.execute(
+                    "SELECT r.ts_ms,r.laeq,r.lafmax FROM readings r "
+                    "WHERE r.node=? AND r.ts_ms>=? AND r.ts_ms<=? "
+                    "AND r.laeq>0 AND r.laeq<=140 "
+                    "AND NOT EXISTS (SELECT 1 FROM exclusions e WHERE e.node=r.node "
+                    "AND r.ts_ms>=e.start_ms AND r.ts_ms<e.end_ms) "
+                    "ORDER BY r.ts_ms DESC LIMIT 600", (node, start_ms, now_ms)
+                ).fetchall()
+                rows = [row for row in reversed(rows) if math.isfinite(row[1])]
+                buckets = {}
+                for stamp, level, peak in rows:
+                    slot = stamp // 5000
+                    energy, count = buckets.get(slot, (0, 0))
+                    buckets[slot] = (energy + 10 ** (level / 10), count + 1)
+                latest = rows[-1] if rows else None
+                result.append({"node": node,
+                    "timestamp": latest[0] if latest else None,
+                    "laeq": round(latest[1], 2) if latest else None,
+                    "lafmax": round(latest[2], 2) if latest and isinstance(latest[2], (int, float)) and math.isfinite(latest[2]) and 0 < latest[2] <= 160 else None,
+                    "samples": len(rows),
+                    "windowLeq": round(10 * math.log10(sum(10 ** (r[1]/10) for r in rows)/len(rows)), 2) if rows else None,
+                    "history": [[slot * 5000, round(10 * math.log10(energy/count), 2)] for slot, (energy, count) in sorted(buckets.items())]})
+        return {"generatedAt": _iso(now), "windowSeconds": 300, "bucketSeconds": 5,
+                "uploadIntervalSeconds": 30, "nodes": result}
+
     def management_state(self, *, force=False):
         now = self._clock()
-        if not force and self._state_cache is not None and now - self._state_cache_time < 20:
+        if not force and self._state_cache is not None and now - self._state_cache_time < 5:
             return self._state_cache
         receiver = self.receiver
         overview = receiver.api_overview()
@@ -167,6 +200,7 @@ class RemoteControl:
         version, start, end = receiver.get_plan()
         bridge = getattr(receiver, "SYNC_BRIDGE", None)
         state = {"generatedAt": _iso(now), "overview": safe_overview, "readiness": readiness,
+                 "telemetry": self.live_telemetry(now),
                  "plan": {"version": version, "startMs": start, "endMs": end, "state": receiver.plan_state(now * 1000)[0]},
                  "bridge": bridge.status() if bridge else {"state": "disabled", "message": "本机摘要同步尚未启动。"}}
         if len(_json(state).encode("utf-8")) > 150_000:

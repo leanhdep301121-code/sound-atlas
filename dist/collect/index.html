@@ -12,19 +12,24 @@
   <div class="nav-actions"><button class="theme-button" type="button" id="collector-theme">明暗</button><button class="button button-outline" type="button" id="logout" hidden>退出管理</button></div>
 </header>
 <main class="collector-shell" id="collector-main">
-  <header class="collector-header"><div><span class="eyebrow">SOUND ATLAS / COLLECT</span><h1>数据采集</h1><p>让每一次观测，都准确回到空间。</p></div><a class="view-link" href="../">查看声环境图 <span aria-hidden="true">↗</span></a></header>
+  <header class="collector-header"><div><span class="eyebrow">SOUND ATLAS / COLLECT</span><h1>数据采集</h1><p>六个测点，一屏查看声级、连接与采集进度。</p></div><a class="view-link" href="../">查看声环境图 <span aria-hidden="true">↗</span></a></header>
   <section class="login-panel" id="login-panel" aria-labelledby="login-heading">
     <div class="login-copy"><span class="small-label">管理入口</span><h2 id="login-heading">连接你的观测。</h2><p>登录后查看设备、安排采集，并管理五张公桌与 D1 工位的观测记录。</p><p class="login-note">展示页面可直接分享，采集操作仅向管理者开放。</p></div>
     <form id="login-form"><label for="admin-key">管理口令</label><input id="admin-key" type="password" autocomplete="current-password" required maxlength="256" placeholder="输入管理口令"><p class="field-note">口令保存在采集电脑的管理访问文件中。</p><button class="button button-primary" type="submit" id="login-button">进入采集管理 <span aria-hidden="true">↗</span></button><p id="login-status" role="status">正在检查登录状态…</p></form>
   </section>
   <div id="admin-app" hidden>
     <section class="collector-connection" aria-label="采集端连接状态"><div><span class="collector-dot" id="connection-dot"></span><strong id="connection-title">正在连接采集端</strong><span id="connection-message">正在读取状态…</span></div><div class="connection-actions"><span id="last-sync">—</span><button class="button button-outline" id="refresh-state" type="button">刷新</button></div></section>
-    <nav class="collector-tabs" aria-label="采集管理栏目"><button type="button" data-tab="overview" aria-current="page">总览</button><button type="button" data-tab="plan">采集计划</button><button type="button" data-tab="manage">数据管理</button></nav>
+    <nav class="collector-tabs" aria-label="采集管理栏目"><button type="button" data-tab="overview" aria-current="page">实时监测</button><button type="button" data-tab="plan">采集计划</button><button type="button" data-tab="manage">数据管理</button></nav>
     <p class="operation-status" id="operation-status" role="status" hidden></p>
     <section id="panel-overview" class="collector-panel" aria-labelledby="overview-heading">
-      <div class="section-title"><div><h2 id="overview-heading">公桌与工位，一起观测。</h2><p>设备按现场位置对应，读数与展示站自动同步。</p></div></div>
-      <div class="metric-strip"><div><span>在线测点</span><strong id="online-count">—</strong></div><div><span>可用记录</span><strong id="usable-count">—</strong></div><div><span>当前计划</span><strong id="plan-metric">—</strong></div></div>
-      <div class="table-scroll"><table class="station-table"><thead><tr><th scope="col">公桌 / 设备</th><th scope="col">位置</th><th scope="col">连接与就绪</th><th scope="col">观测记录</th><th scope="col">最近通信</th></tr></thead><tbody id="station-rows"></tbody></table></div>
+      <div class="section-title"><div><h2 id="overview-heading">实时声级</h2><p>最新 1 秒声级 · 近 5 分钟走势</p></div><div class="monitor-timing"><span class="live-indicator" aria-hidden="true"></span><strong id="monitor-refresh">自动更新</strong><span id="monitor-clock">—</span></div></div>
+      <div class="metric-strip"><div><span>在线测点</span><strong id="online-count">—</strong></div><div><span>新鲜读数</span><strong id="fresh-count">—</strong></div><div><span>有效记录 · 六测点</span><strong id="usable-count">—</strong></div><div><span>当前计划</span><strong id="plan-metric">—</strong></div></div>
+      <div id="monitor-alert" class="monitor-alert" role="status" hidden></div>
+      <div class="monitor-grid" id="station-monitor" aria-label="六个测点实时声级"></div>
+      <div class="monitor-explainer"><span>页面每 5 秒检查更新 · 设备约 30 秒批量上传</span><span>曲线为 5 秒声能平均；断线留空，不补造数据。</span></div>
+      <details class="station-details"><summary>设备详情与累计记录</summary>
+      <div class="table-scroll"><table class="station-table"><thead><tr><th scope="col">测点 / 设备</th><th scope="col">位置</th><th scope="col">连接与就绪</th><th scope="col">观测记录</th><th scope="col">最近通信</th></tr></thead><tbody id="station-rows"></tbody></table></div>
+      </details>
       <p class="section-footnote">采集电脑需保持开机联网。数据先保存在本机，展示站自动读取声级摘要。</p>
     </section>
     <section id="panel-plan" class="collector-panel" aria-labelledby="plan-heading" hidden>

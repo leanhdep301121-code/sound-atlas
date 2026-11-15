@@ -183,6 +183,27 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(self.worker.execute_command(command),{'id':command['id'],'status':'done','result':{'acknowledged':True}})
         self.assertEqual(self.worker.pending_results(),[{'id':command['id'],'status':'done','result':{'acknowledged':True}}])
 
+    def test_live_telemetry_energy_exclusions_and_fresh_timestamps(self):
+        import math
+        now=self.now
+        start=int(now*1000)-10000
+        self.add_rows(node='D1',levels=(50,60,70),start=start)
+        with self.receiver.db_lock:
+            self.receiver.conn.execute("INSERT INTO readings(node,ts_ms,laeq,lafmax) VALUES(?,?,?,?)",('D1',int(now*1000)+30000,99,100))
+            self.receiver.conn.commit()
+        self.receiver.api_exclude({'nodes':['D1'],'start':start+2000,'end':start+3000,'reason':'test'})
+        telemetry=self.worker.live_telemetry(now)
+        node=next(n for n in telemetry['nodes'] if n['node']=='D1')
+        self.assertEqual(node['laeq'],60)
+        self.assertEqual(node['timestamp'],start+1000)
+        self.assertEqual(node['samples'],2)
+        self.assertAlmostEqual(node['windowLeq'],10*math.log10((10**5+10**6)/2),places=2)
+        self.assertTrue(all(p[0]<=now*1000 for p in node['history']))
+        empty=next(n for n in telemetry['nodes'] if n['node']=='N1')
+        self.assertIsNone(empty['laeq'])
+        self.assertEqual(empty['history'],[])
+        self.assertEqual(len(telemetry['nodes']),6)
+
     def test_d1_readiness_and_export_use_acoustic_records(self):
         start=self.add_rows(node='D1')
         state=self.worker.management_state(force=True)

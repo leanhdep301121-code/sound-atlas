@@ -1,3 +1,4 @@
+import { liveStation, ageLabel, sparkPath } from './collect-live.mjs';
 import { createAdminClient, AdminError, beijingInput, parseBeijing, formatBeijing, exportChunk } from './collect-core.mjs';
 
 const $ = id => document.getElementById(id);
@@ -18,12 +19,13 @@ let authenticated=false, state=null, currentTab='overview', statePending=false, 
 let series=null, selection=null, selectedNodes=new Set(TABLES.map(table=>table.node));
 let dataLoaded=false, exportController=null, chartDrag=null;
 let confirmResolve=null, confirmRequired='';
+let lastRefreshAt=0, refreshFailed=false, sessionGeneration=0;
 
 function operation(message, error=false) { $('operation-status').textContent=message; $('operation-status').hidden=!message; $('operation-status').dataset.error=String(error); }
 const client=createAdminClient({onProgress:({action,status})=>operation((actionNames[action]||'操作')+' · '+(status==='running'?'采集端正在执行…':'已发送，等待采集端执行…'))});
 
 function showLogin(message='') {
-  authenticated=false;state=null;$('login-panel').hidden=false;$('admin-app').hidden=true;$('logout').hidden=true;
+  authenticated=false;state=null;sessionGeneration++;$('login-panel').hidden=false;$('admin-app').hidden=true;$('logout').hidden=true;
   $('login-status').textContent=message;$('login-status').dataset.error=String(Boolean(message));
 }
 function errorMessage(error) {
@@ -65,6 +67,39 @@ $('confirm-cancel').addEventListener('click',()=>resolveConfirmation(false));
 $('confirm-dialog').addEventListener('cancel',event=>{event.preventDefault();resolveConfirmation(false);});
 $('confirm-phrase').addEventListener('input',()=>{$('confirm-accept').disabled=$('confirm-phrase').value!==confirmRequired;});
 
+const monitorTime = new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+function renderMonitor() {
+  if(!authenticated)return;
+  const now=Date.now(),items=TABLES.map(table=>({table,...liveStation(state,table.node,now)}));
+  const connected=items.some(item=>item.sourceFresh);
+  $('connection-dot').dataset.online=String(connected);
+  $('connection-title').textContent=connected?'采集端已连接':'采集端离线';
+  $('connection-message').textContent=connected?'自动接收观测，读数按设备实际上传更新。':'连接中断，保留历史曲线，暂停显示实时数值。';
+  $('last-sync').textContent=state?.receivedAt?'状态同步 '+monitorTime.format(new Date(state.receivedAt))+' · 北京时间':'尚未收到状态';
+  $('online-count').textContent=items.filter(item=>item.online).length+' / '+TABLES.length;
+  $('fresh-count').textContent=items.filter(item=>item.fresh).length+' / '+TABLES.length;
+  $('monitor-clock').textContent=monitorTime.format(now)+' 北京时间';
+  $('monitor-refresh').textContent=refreshFailed?'正在重连':statePending?'检查更新…':Math.max(0,5-Math.floor((now-lastRefreshAt)/1000))+' 秒后检查';
+  const issues=items.filter(item=>!item.fresh);
+  $('monitor-alert').hidden=!issues.length;
+  $('monitor-alert').textContent=!connected?'采集端暂未连接。下方为已收到的历史数据，恢复连接后自动更新。':issues.map(item=>item.table.name+'：'+item.status).join('；');
+  $('station-monitor').innerHTML=items.map(item=>{
+    const {table,observation:obs}=item;
+    const summary=(state?.overview?.nodes||[]).find(row=>row.node===table.node)||{};
+    const recent=item.history.length>0;
+    const last=Number.isFinite(obs.laeq)?obs.laeq.toFixed(1)+' dB(A)':'—';
+    return `<article class="monitor-station" data-tone="${item.tone}" aria-label="${table.name}实时监测">
+      <header><div class="monitor-name"><span class="station-marker">${table.marker}</span><div><h3>${table.name}</h3><span>${table.node}${table.node==='D1'?' · 个人工位':' · 声级节点'}</span></div></div><span class="monitor-status">${item.status}</span></header>
+      <p class="monitor-place">${table.place}</p>
+      <div class="monitor-reading"><strong>${item.value===null?'—':item.value.toFixed(1)}</strong><div><span>dB(A)</span><small>最新 1 秒 LAeq</small></div></div>
+      <p class="sample-age">${Number.isFinite(item.age)?'数据 '+ageLabel(item.age)+(item.fresh?'':' · 上次 '+last):'等待第一条有效观测'}</p>
+      <div class="monitor-spark"><svg viewBox="0 0 400 62" preserveAspectRatio="none" role="img" aria-label="${table.name}近五分钟声级曲线，统一30至90分贝刻度"><path class="spark-guide" d="M0,31 H400"/><path class="spark-line" d="${sparkPath(item.history,now)}"/></svg>${recent?'':'<span class="spark-empty">近 5 分钟暂无有效数据</span>'}</div>
+      <div class="spark-axis"><span>5 分钟前</span><span>现在</span></div>
+      <footer><div><span>5 分钟 LAeq</span><strong>${recent&&Number.isFinite(obs.windowLeq)?obs.windowLeq.toFixed(1):'—'} <small>dB(A)</small></strong></div><div><span>有效记录</span><strong>${num(summary.usable)} <small>条</small></strong></div><div><span>设备通信</span><strong class="communication-age">${ageLabel((now-Date.parse(item.ready.lastSeen))/1000)}</strong></div></footer>
+    </article>`;
+  }).join('');
+}
+
 function readinessFor(node) { return (state?.readiness||[]).find(item=>(item.node||item.id)===node)||{}; }
 function currentPlan() {
   const plan=state?.plan||{};
@@ -78,7 +113,7 @@ function renderState() {
   $('last-sync').textContent=state?.receivedAt?'最近同步 '+formatBeijing(Date.parse(state.receivedAt)).slice(5):'尚未收到采集端状态';
   const online=TABLES.filter(table=>connected&&readinessFor(table.node).online).length;
   $('online-count').textContent=online+' / '+TABLES.length;
-  $('usable-count').textContent=num((overview.nodes||[]).reduce((sum,node)=>sum+(node.usable||0),0));
+  $('usable-count').textContent=num((overview.nodes||[]).filter(node=>names[node.node]).reduce((sum,node)=>sum+(node.usable||0),0));
   $('plan-metric').textContent=planNames[plan.state]||'—';
   $('station-rows').innerHTML=TABLES.map(table=>{
     const info=readinessFor(table.node),summary=(overview.nodes||[]).find(item=>item.node===table.node)||{};
@@ -106,12 +141,14 @@ function renderState() {
   $('backup-summary').textContent=(overview.backups||[]).length?'最近本机备份：'+overview.backups.slice(0,3).map(item=>`${item.name}（${item.mb} MB）`).join('；'):'本机还没有列出的备份。';
   if(!$('range-start').value)chooseRange('all',false);
   setBusy(busy);
+  renderMonitor();
 }
 async function refreshState(silent=false) {
   if(!authenticated||statePending||document.hidden)return;
   statePending=true;
-  try { state=await client.state();renderState(); }
-  catch(error){if(error.status===401)handleError(error);else{state={...(state||{}),connected:false};renderState();if(!silent)handleError(error);}}
+  const generation=sessionGeneration;
+  try { const incoming=await client.state();if(!authenticated||generation!==sessionGeneration)return;state=incoming;lastRefreshAt=Date.now();refreshFailed=false;renderState(); }
+  catch(error){if(!authenticated||generation!==sessionGeneration)return;refreshFailed=true;if(error.status===401)handleError(error);else{state={...(state||{}),connected:false};renderState();if(!silent)handleError(error);}}
   finally{statePending=false;}
 }
 
@@ -304,6 +341,7 @@ async function purge(mode) {
 }
 $('purge-range').addEventListener('click',()=>purge('range'));$('purge-outside').addEventListener('click',()=>purge('outside_plan'));
 
-setInterval(()=>refreshState(true),10000);
+setInterval(()=>refreshState(true),5000);
+setInterval(()=>{if(authenticated&&!document.hidden)renderMonitor();},1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshState(true);});
 (async()=>{try{const session=await client.session();if(!session.authenticated){showLogin();return;}authenticated=true;$('login-panel').hidden=true;$('admin-app').hidden=false;$('logout').hidden=false;await refreshState();}catch(error){showLogin(errorMessage(error));}})();
