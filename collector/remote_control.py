@@ -25,7 +25,7 @@ from pathlib import Path
 from calibration import Calibration, profiles, correction, corrected
 from live_bridge import load_config
 
-ALLOWED_ACTIONS = frozenset({"overview", "series", "count", "suspects", "plan", "exclude", "unexclude", "export", "purge", "calibration"})
+ALLOWED_ACTIONS = frozenset({"overview", "series", "count", "suspects", "plan", "exclude", "unexclude", "export", "purge", "calibration", "inspect"})
 WRITE_ACTIONS = frozenset({"plan", "exclude", "unexclude", "purge", "calibration"})
 MAX_RESULT_BYTES = 180_000
 MAX_CSV_BYTES = 90_000
@@ -122,6 +122,10 @@ class RemoteControl:
         self._state_cache_time = 0
         self._overview_cache = None
         self._overview_cache_time = 0
+        self._live_view_cache = None
+        self._live_view_signature = None
+        self._published_view_revision = None
+        self._published_view_at = 0
         self._closed = False
         self._last_journal_maintenance = None
         self._maintain_journal(force=True)
@@ -186,6 +190,29 @@ class RemoteControl:
         return {"generatedAt": _iso(now), "windowSeconds": 300, "bucketSeconds": 5,
                 "uploadIntervalSeconds": 30, "nodes": result}
 
+    def live_data_view(self, overview, now):
+        """Precompute the active plan once per new observation batch, not per visitor."""
+        receiver=self.receiver
+        version,start,stop=receiver.get_plan()
+        tick=int(now//5)*5000
+        preset='plan' if start else 'hour'
+        lower=math.ceil((start or tick-3600000)/1000)*1000
+        summaries=[row for row in overview.get('nodes',[]) if row['node'] in receiver.EXPECTED_NODES]
+        last=max((row.get('last') or 0 for row in summaries),default=0)
+        upper=min((stop//1000)*1000 if stop else tick,tick,(last//1000+1)*1000)
+        signature=_json([version,lower,upper,[(n['node'],n.get('count'),n.get('last'),n.get('excluded'),n.get('invalid')) for n in summaries],overview.get('exclusions',[])])
+        revision=hashlib.sha256(signature.encode()).hexdigest()
+        if revision==self._live_view_signature:return self._live_view_cache,revision
+        view=None
+        if upper>lower:
+            with receiver.db_lock:
+                series=receiver.api_series({'start':lower,'end':upper,'w':240})
+                series['series']={node:rows for node,rows in series['series'].items() if node in receiver.EXPECTED_NODES}
+                counts={node:receiver.api_count({'start':lower,'end':upper,'nodes':[node]}) for node in receiver.EXPECTED_NODES}
+            view={'revision':revision,'preset':preset,'generatedAt':_iso(now),'series':series,'counts':counts}
+        self._live_view_signature,self._live_view_cache=revision,view
+        return view,revision
+
     def management_state(self, *, force=False):
         now = self._clock()
         if not force and self._state_cache is not None and now - self._state_cache_time < 1:
@@ -211,8 +238,10 @@ class RemoteControl:
                               "lastSeen": _iso(stamp) if isinstance(stamp, (int, float)) and math.isfinite(stamp) else None})
         version, start, end = receiver.get_plan()
         bridge = getattr(receiver, "SYNC_BRIDGE", None)
+        live_view,view_revision=self.live_data_view(safe_overview,now)
         state = {"generatedAt": _iso(now), "overview": safe_overview, "readiness": readiness,
                  "telemetry": self.live_telemetry(now), "calibration": self.calibration.state(),
+                 "liveView":live_view,"liveViewRevision":view_revision,
                  "plan": {"version": version, "startMs": start, "endMs": end, "state": receiver.plan_state(now * 1000)[0]},
                  "bridge": bridge.status() if bridge else {"state": "disabled", "message": "本机摘要同步尚未启动。"}}
         if len(_json(state).encode("utf-8")) > 150_000:
@@ -264,6 +293,14 @@ class RemoteControl:
                 else: raise RemoteError("不支持此校准操作。")
                 self._changed()
                 return result
+        if action == "inspect":
+            start,end=self._range(payload)
+            nodes=self._nodes(payload.get('nodes'))
+            with receiver.db_lock:
+                series=receiver.api_series({'start':start,'end':end,'w':max(50,min(600,int(payload.get('w',450))))})
+                series['series']={node:rows for node,rows in series['series'].items() if node in nodes}
+                count=receiver.api_count({'start':start,'end':end,'nodes':nodes})
+            return {'series':series,'count':count,'generatedAt':_iso(self._clock())}
         if action == "overview":
             return self.management_state(force=True)["overview"]
         if action in ("series", "count", "suspects"):
@@ -350,6 +387,7 @@ class RemoteControl:
     def _changed(self):
         self._state_cache = None
         self._overview_cache = None
+        self._live_view_signature = None
         bridge = getattr(self.receiver, "SYNC_BRIDGE", None)
         if bridge:
             bridge.invalidate()
@@ -530,7 +568,13 @@ class RemoteControl:
                     self._state, self._message = "disabled", "远程管理尚未启用。"
                 return False
             results = self.pending_results()
-            response = self._transport(control_endpoint(config), config["token"], {"action": "poll", "state": self.management_state(), "results": results})
+            outgoing=self.management_state().copy()
+            revision=outgoing['liveViewRevision']
+            if revision==self._published_view_revision and self._clock()-self._published_view_at<3600:
+                outgoing.pop('liveView',None)
+            response = self._transport(control_endpoint(config), config["token"], {"action": "poll", "state": outgoing, "results": results})
+            if 'liveView' in outgoing:
+                self._published_view_revision,self._published_view_at=revision,self._clock()
             server_time = _millis(response.get("serverTime"))
             if abs(server_time - self._clock() * 1000) > 120_000:
                 raise RemoteError("采集电脑与云端时间相差过大，远程操作已暂停。")

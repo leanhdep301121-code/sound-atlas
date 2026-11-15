@@ -2,7 +2,7 @@ export class AdminError extends Error {
   constructor(message, status = 0, commandId = null) { super(message); this.status = status; this.commandId = commandId; }
 }
 
-export function createAdminClient({ fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, pollMs = 1500, maxWaitMs = 150000, onProgress = () => {} } = {}) {
+export function createAdminClient({ fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, pollMs = 500, maxWaitMs = 150000, onProgress = () => {} } = {}) {
   let csrf = '';
   async function request(name, { method = 'GET', body, signal } = {}) {
     const headers = {};
@@ -38,7 +38,7 @@ export function createAdminClient({ fetcher = fetch, wait = ms => new Promise(re
   }
   async function login(key) { await request('admin-session', { method: 'POST', body: { key } }); return session(); }
   async function logout() { await request('admin-session', { method: 'DELETE' }); csrf = ''; }
-  async function command(action, payload = {}, { signal, requestId = crypto.randomUUID() } = {}) {
+  async function command(action, payload = {}, { signal, requestId = crypto.randomUUID(), quiet = false } = {}) {
     signal?.throwIfAborted();
     const queued = await request('admin-command', { method: 'POST', body: { action, payload, requestId }, signal });
     if (!queued.id) throw new AdminError('服务未返回操作编号，请刷新确认状态。');
@@ -47,7 +47,7 @@ export function createAdminClient({ fetcher = fetch, wait = ms => new Promise(re
     let state = queued;
     while (true) {
       signal?.throwIfAborted();
-      onProgress({ id, action, status: state.status });
+      if(!quiet)onProgress({ id, action, status: state.status });
       if (['done', 'completed'].includes(state.status)) return state.result;
       if (['failed', 'expired', 'uncertain', 'cancelled'].includes(state.status)) {
         const messages = { expired: '采集端未及时收到请求，此操作已失效。', uncertain: '执行结果尚未确认，请先刷新状态，勿重复提交。', cancelled: '操作已取消。' };
@@ -60,7 +60,7 @@ export function createAdminClient({ fetcher = fetch, wait = ms => new Promise(re
       catch (error) { error.commandId = id; throw error; }
     }
   }
-  return { session, login, logout, state: () => request('admin-state'), command };
+  return { session, login, logout, state: ({includeView=false}={}) => request('admin-state'+(includeView?'?view=manage':'')), command };
 }
 
 export function beijingInput(ms) {

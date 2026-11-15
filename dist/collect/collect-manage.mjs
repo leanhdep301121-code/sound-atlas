@@ -13,3 +13,25 @@ export function chartReadings(series,node,stamp) {
   const point=series.series?.[node]?.find(row=>row[0]===index);
   return point && Number.isFinite(point[1]) ? point[1] : null;
 }
+export function selectLiveView(view,nodes){
+  if(!view?.series||!nodes.length||nodes.some(node=>!Object.hasOwn(view.counts||{},node)))return null;
+  const series={...view.series,series:Object.fromEntries(nodes.map(node=>[node,view.series.series?.[node]||[]]))};
+  const count=nodes.reduce((sum,node)=>{for(const key of ['total','invalid','excluded'])sum[key]+=view.counts[node][key]||0;return sum;},{total:0,invalid:0,excluded:0});
+  return {series,count,generatedAt:view.generatedAt,revision:view.revision};
+}
+export function viewFitsPlan(view,preset,plan={}){
+  if(!view?.series||view.preset!==preset)return false;
+  if(preset!=='plan')return true;
+  return view.series.start===Math.ceil((plan.startMs||0)/1000)*1000&&(!plan.endMs||view.series.end<=plan.endMs);
+}
+export function followRange(preset,{plan={},overview={},nodes=[],previous=null,now=Date.now()}={}){
+  const available=(overview.nodes||[]).filter(node=>nodes.includes(node.node)&&Number.isFinite(node.first)&&Number.isFinite(node.last));
+  if(!available.length)return null;
+  const first=Math.min(...available.map(node=>node.first)),last=Math.max(...available.map(node=>node.last))+1000;
+  let start=first,end=Math.min(now,last);
+  if(preset==='plan'){start=plan.startMs||first;end=Math.min(end,plan.endMs||end);}
+  if(preset==='hour')start=now-3600000;
+  if(preset==='today')start=Date.parse(new Date(now+8*3600000).toISOString().slice(0,10)+'T00:00:00+08:00');
+  if(preset==='custom')start=previous?.start||first;
+  return end>start?{start:Math.floor(start/1000)*1000,end:Math.ceil(end/1000)*1000}:null;
+}

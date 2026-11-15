@@ -90,6 +90,31 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(calls,{'overview':3,'telemetry':4})
         self.assertEqual(self.worker.interval,1)
 
+    def test_inspection_returns_curve_and_count_in_one_snapshot(self):
+        start=self.add_rows('N1')
+        self.add_rows('N2')
+        result=self.worker.execute_command(self.command('inspect',{'start':start-1,'end':start+10000,'nodes':['N1'],'w':100},identifier='inspect-snapshot'))
+        self.assertEqual(result['status'],'done')
+        self.assertEqual(result['result']['count']['total'],3)
+        self.assertEqual(set(result['result']['series']['series']),{'N1'})
+
+    def test_live_view_is_only_retransmitted_when_revision_changes(self):
+        start=self.add_rows('D2')
+        captures=[]
+        def transport(endpoint,token,payload):
+            captures.append(payload['state'])
+            return {'serverTime':_iso(self.worker._clock()),'acknowledged':[],'command':None}
+        self.worker._transport=transport
+        self.worker.poll_once();self.worker.poll_once()
+        self.assertIn('liveView',captures[0]);self.assertNotIn('liveView',captures[1])
+        view=captures[0]['liveView']
+        self.assertIsNotNone(view)
+        self.assertEqual(view['counts']['D2']['total'],3)
+        self.assertEqual(view['series']['end']%1000,0)
+        self.add_rows('N3',start=start+5000);self.worker._changed();self.worker.poll_once()
+        self.assertIn('liveView',captures[-1])
+        self.assertNotEqual(captures[0]['liveViewRevision'],captures[-1]['liveViewRevision'])
+
     def test_read_state_contains_no_ip_and_correct_mapping(self):
         self.receiver.conn.execute('INSERT INTO nodes(node,last_seen,ip,cfg_ver,mic,synced) VALUES(?,?,?,?,?,?)',('N1',time.time(),'192.168.1.99',0,0,1))
         self.receiver.conn.commit()
