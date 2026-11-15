@@ -3,7 +3,7 @@
 const byId = id => document.getElementById(id);
 const nodes = TABLES;
 const initialLiveSource = SoundAtlasLive.selectPeriod(null);
-const state = { ...initialLiveSource, demo: false, mode: 'live', layer: 'sound', table: 'A' };
+const state = { ...initialLiveSource, demo: false, mode: 'live', layer: 'sound', table: 'A', highlighted: true };
 const colors = name => getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
 const mapButtons = new Map();
 const pointReadings = new Map();
@@ -73,6 +73,7 @@ function selectNode(id) {
   if (!OBSERVATION_NODES.some(node => node.id === id)) return;
   if (state.layer !== 'heatmap') state.layer = 'sound';
   state.table = id;
+  state.highlighted = true;
   render();
 }
 
@@ -207,14 +208,14 @@ function render() {
     const value = labelValue(node, frame);
     mapButton.setAttribute('aria-label', node.name + '，' + value);
     mapButton.title = node.name + ' / ' + value;
-    mapButton.setAttribute('aria-pressed', node.id === selected.id);
+    mapButton.setAttribute('aria-pressed', state.highlighted && node.id === selected.id);
     pointReadings.get(node.id).textContent = value.replace(' dB(A)', '');
     const row = comparisonButtons.get(node.id);
-    row.button.setAttribute('aria-pressed', node.id === selected.id);
+    row.button.setAttribute('aria-pressed', state.highlighted && node.id === selected.id);
     row.reading.textContent = value;
   }
   byId('dorm-reading').textContent=labelValue(OBSERVATION_NODES.find(node=>node.id==='D2'),frame);
-  byId('dorm-select').setAttribute('aria-pressed',String(state.table==='D2'));
+  byId('dorm-select').setAttribute('aria-pressed',String(state.highlighted && state.table==='D2'));
   byId('trend-table').value = state.table;
   byId('chart-table-name').textContent = OBSERVATION_NODES.find(node => node.id === state.table).name;
   if (mapView === 'plan') drawPlan(frame);
@@ -357,7 +358,7 @@ function setSource(source, mode) {
   announce();
 }
 
-byId('layer-sound').addEventListener('click', () => { state.layer = 'sound'; selectNode(state.table); announce(); });
+byId('layer-sound').addEventListener('click', () => { state.layer = 'sound'; render(); announce(); });
 byId('layer-heatmap').addEventListener('click', () => {
   state.layer = 'heatmap';
   render();
@@ -463,7 +464,7 @@ function updateSpatialView(frame, selectedId) {
   if (!spatialViewer || mapView !== 'spatial') return;
   spatialViewer.update({
     frame,
-    selectedId,
+    selectedId: state.highlighted ? selectedId : null,
     layer: state.layer,
     heatmapCanvas: heatmapRaster,
     heatmapOpacity: Number(byId('heatmap-opacity').value) / 100,
@@ -585,6 +586,28 @@ function setMapView(view) {
 }
 byId('view-spatial').addEventListener('click', () => setMapView('spatial'));
 byId('view-plan').addEventListener('click', () => setMapView('plan'));
+
+// A blank tap clears the highlight. Panning, orbiting and pinch gestures do not.
+let blankTap = null;
+const interactiveMapTarget = target => target.closest('button,a,input,select,textarea,[role="button"]');
+mapViewport.addEventListener('pointerdown', event => {
+  if (!event.isPrimary || event.button !== 0 || interactiveMapTarget(event.target)) { blankTap = null; return; }
+  blankTap = { id:event.pointerId, x:event.clientX, y:event.clientY, moved:false };
+}, true);
+mapViewport.addEventListener('pointermove', event => {
+  if (blankTap?.id === event.pointerId && Math.hypot(event.clientX-blankTap.x,event.clientY-blankTap.y)>6) blankTap.moved=true;
+}, true);
+mapViewport.addEventListener('pointerup', event => {
+  const tap=blankTap;blankTap=null;
+  if (!tap || tap.id!==event.pointerId || tap.moved || Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>6 || interactiveMapTarget(event.target)) return;
+  if (state.highlighted) {
+    state.highlighted=false;
+    render();
+    byId('change-announcement').textContent='已取消测点高亮。再次点击测点可重新选中。';
+  }
+}, true);
+mapViewport.addEventListener('pointercancel',()=>{blankTap=null;},true);
+mapViewport.addEventListener('lostpointercapture',()=>{blankTap=null;},true);
 
 let mapDrag = null;
 mapViewport.addEventListener('pointerdown', event => {
