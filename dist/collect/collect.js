@@ -1,4 +1,4 @@
-import { scopeKey, operationScope, chartReadings, selectLiveView, followRange, viewFitsPlan } from './collect-manage.mjs';
+import { scopeKey, operationScope, chartReadings, selectLiveView, followRange, viewFitsPlan, beginSelectionGesture, moveSelectionGesture, selectionFromGesture } from './collect-manage.mjs';
 import { liveStation, ageLabel, sparkPath } from './collect-live.mjs';
 import { createAdminClient, AdminError, beijingInput, parseBeijing, formatBeijing, exportChunk } from './collect-core.mjs';
 
@@ -19,7 +19,7 @@ const planNames = {none:'未设置',waiting:'等待开始',recording:'正在采�
 const actionNames = {overview:'读取观测总览',series:'读取声级曲线',count:'统计选定记录',suspects:'检查可疑数据',plan:'保存采集计划',exclude:'排除选定时段',unexclude:'撤销排除',export:'导出观测记录',purge:'核对与处理删除',calibration:'处理校准任务'};
 let authenticated=false, state=null, currentTab='overview', statePending=false, busy=false, planDirty=false;
 let series=null, selection=null, selectedNodes=new Set(TABLES.map(table=>table.node));
-let dataLoaded=false, exportController=null, chartDrag=null;
+let dataLoaded=false, exportController=null, chartDrag=null, nodeApplyTimer=null;
 let confirmResolve=null, confirmRequired='';
 let lastRefreshAt=0, refreshFailed=false, sessionGeneration=0;
 let planMode='continuous',planModeDirty=false;
@@ -232,6 +232,12 @@ function markFiltersDirty(){
   $('scope-total').textContent='—';$('scope-excluded').textContent='—';$('scope-count-status').textContent='应用筛选后自动统计。';
   updateSelectionDescription();drawChart();syncManageControls();
 }
+function autoApplyNodeFilters(){
+  clearTimeout(nodeApplyTimer);
+  if(followData&&rangePreset!=='custom'&&selectedNodes.size)nodeApplyTimer=setTimeout(()=>{
+    if(followData&&rangePreset!=='custom'&&selectedNodes.size&&!busy)loadSeries();
+  },180);
+}
 function renderNodeFilters(force=false){
   const other=(state?.overview?.nodes||[]).map(node=>node.node).filter(node=>!names[node]);
   const signature=JSON.stringify(other);
@@ -239,10 +245,10 @@ function renderNodeFilters(force=false){
   nodeFilterSignature=signature;
   const labels=nodes=>nodes.map(node=>`<label><input type="checkbox" value="${esc(node)}" ${selectedNodes.has(node)?'checked':''}><span>${esc(names[node]||node)}</span><small>${esc(node)}</small></label>`).join('');
   $('data-nodes').innerHTML=labels(TABLES.map(table=>table.node));$('other-data-nodes').innerHTML=labels(other);$('other-node-details').hidden=!other.length;
-  document.querySelectorAll('#data-nodes input,#other-data-nodes input').forEach(input=>input.addEventListener('change',()=>{input.checked?selectedNodes.add(input.value):selectedNodes.delete(input.value);markFiltersDirty();}));
+  document.querySelectorAll('#data-nodes input,#other-data-nodes input').forEach(input=>input.addEventListener('change',()=>{input.checked?selectedNodes.add(input.value):selectedNodes.delete(input.value);markFiltersDirty();autoApplyNodeFilters();}));
 }
 for(const id of ['range-start','range-end'])$(id).addEventListener('input',()=>{rangePreset='custom';pauseDataFollow('已暂停：正在编辑查询时间。');document.querySelectorAll('[data-range]').forEach(button=>button.setAttribute('aria-pressed','false'));markFiltersDirty();});
-document.querySelectorAll('[data-node-choice]').forEach(button=>button.addEventListener('click',()=>{selectedNodes=new Set(button.dataset.nodeChoice==='all'?TABLES.map(table=>table.node):button.dataset.nodeChoice==='personal'?['D2']:[]);renderNodeFilters(true);markFiltersDirty();}));
+document.querySelectorAll('[data-node-choice]').forEach(button=>button.addEventListener('click',()=>{selectedNodes=new Set(button.dataset.nodeChoice==='all'?TABLES.map(table=>table.node):button.dataset.nodeChoice==='personal'?['D2']:[]);renderNodeFilters(true);markFiltersDirty();autoApplyNodeFilters();}));
 async function refreshScopeCount(){
   if(busy||!queryIsCurrent())return;
   if(countPending){clearTimeout(countTimer);countTimer=setTimeout(refreshScopeCount,500);return;}
@@ -380,7 +386,7 @@ async function loadSeries({background=false,rangeOverride=null}={}) {
   finally{if(generation===queryGeneration){queryPending=false;queryController=null;syncManageControls();}}
 }
 function maybeFollowData(force=false){
-  if(!followData||!authenticated||document.hidden||currentTab!=='manage'||busy||queryPending||!state?.connected||selection)return;
+  if(!followData||!authenticated||document.hidden||currentTab!=='manage'||busy||queryPending||!state?.connected||selection||chartDrag)return;
   if(pendingFollowApply&&pendingFollowKey!==draftKey()){pendingFollowApply=false;return;}
   if(dataLoaded&&!queryIsCurrent()&&!pendingFollowApply)return;
   if(!force&&lastFollowVersion&&lastFollowVersion===state.liveViewRevision)return;
@@ -425,7 +431,7 @@ function drawChart() {
   if(!series||!nodes.length){ctx.textAlign='center';ctx.fillText(nodes.length?'选择时段并查看曲线。':'请选择公桌或设备。',width/2,height/2);chartGeometry=null;return;}
   const x=stamp=>chartPadding.left+(stamp-series.start)/(series.end-series.start)*(width-chartPadding.left-chartPadding.right);
   chartGeometry={width,height,start:series.start,end:series.end,x};
-  const activeSelection=chartDrag?{start:Math.min(chartDrag.start,chartDrag.end),end:Math.max(chartDrag.start,chartDrag.end)}:selection;
+  const activeSelection=selectionFromGesture(chartDrag)||selection;
   nodes.forEach((node,index)=>{
     const top=chartPadding.top+index*(chartPadding.lane+chartPadding.gap),points=series.series?.[node]||[];
     const valid=points.filter(point=>Number.isFinite(point[1]));
@@ -445,10 +451,34 @@ function drawChart() {
   $('chart-description').textContent=formatBeijing(series.start)+' — '+formatBeijing(series.end)+' · 每段 '+Math.round(series.bucket/1000)+' 秒';
 }
 function chartTime(event){const rect=chart.getBoundingClientRect();const px=Math.max(chartPadding.left,Math.min(chartGeometry.width-chartPadding.right,event.clientX-rect.left));return Math.round((chartGeometry.start+(px-chartPadding.left)/(chartGeometry.width-chartPadding.left-chartPadding.right)*(chartGeometry.end-chartGeometry.start))/1000)*1000;}
-chart.addEventListener('pointerdown',event=>{if(!chartGeometry||event.button!==0||busy||!queryIsCurrent())return;pauseDataFollow('已暂停：图上选区已锁定。');chartDrag={start:chartTime(event),end:chartTime(event)};chart.setPointerCapture(event.pointerId);});
-chart.addEventListener('pointermove',event=>{if(!chartGeometry)return;const stamp=chartTime(event);$('chart-hover').textContent=formatBeijing(stamp,true)+' · '+(appliedQuery?.nodes||[]).map(node=>{const value=chartReadings(series,node,stamp);return (names[node]||node)+' '+(value===null?'无记录':value.toFixed(1)+' dB(A)');}).join(' / ');if(chartDrag){chartDrag.end=stamp;drawChart();}});
-chart.addEventListener('pointerup',()=>{if(!chartDrag)return;if(Math.abs(chartDrag.end-chartDrag.start)>=1000)selection={start:Math.min(chartDrag.start,chartDrag.end),end:Math.max(chartDrag.start,chartDrag.end)};chartDrag=null;drawChart();updateSelectionDescription();if(selection)scheduleScopeCount();});
-chart.addEventListener('pointercancel',()=>{chartDrag=null;drawChart();});
+chart.addEventListener('pointerdown',event=>{
+  if(!chartGeometry||event.button!==0||busy||!queryIsCurrent())return;
+  queryGeneration++;queryController?.abort();queryPending=false;
+  chartDrag=beginSelectionGesture(event.clientX,chartTime(event),followData);
+  chart.setPointerCapture(event.pointerId);
+});
+chart.addEventListener('pointermove',event=>{
+  if(!chartGeometry)return;
+  const stamp=chartTime(event);
+  $('chart-hover').textContent=formatBeijing(stamp,true)+' · '+(appliedQuery?.nodes||[]).map(node=>{const value=chartReadings(series,node,stamp);return (names[node]||node)+' '+(value===null?'无记录':value.toFixed(1)+' dB(A)');}).join(' / ');
+  if(chartDrag){
+    const wasSelecting=chartDrag.selecting;
+    chartDrag=moveSelectionGesture(chartDrag,event.clientX,stamp);
+    if(chartDrag.selecting&&!wasSelecting)pauseDataFollow('已暂停：图上选区已锁定。');
+    if(chartDrag.selecting)drawChart();
+  }
+});
+function finishChartGesture(cancelled=false){
+  if(!chartDrag)return;
+  const gesture=chartDrag,next=cancelled?null:selectionFromGesture(gesture);chartDrag=null;
+  if(next)selection=next;
+  else if(gesture.following){followData=true;queryMessage='';}
+  drawChart();updateSelectionDescription();
+  if(next)scheduleScopeCount();else maybeFollowData();
+}
+chart.addEventListener('pointerup',()=>finishChartGesture());
+chart.addEventListener('pointercancel',()=>finishChartGesture(true));
+chart.addEventListener('lostpointercapture',()=>finishChartGesture(true));
 new ResizeObserver(drawChart).observe(chart);
 
 function rangeDescription(range,nodes){return nodes.map(node=>(names[node]||node)+' / '+node).join('、')+'\n'+formatBeijing(range.start,true)+' — '+formatBeijing(range.end,true)+'（北京时间）';}

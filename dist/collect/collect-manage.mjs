@@ -13,6 +13,16 @@ export function chartReadings(series,node,stamp) {
   const point=series.series?.[node]?.find(row=>row[0]===index);
   return point && Number.isFinite(point[1]) ? point[1] : null;
 }
+export function beginSelectionGesture(x,stamp,following){
+  return {x,start:stamp,end:stamp,following,selecting:false};
+}
+export function moveSelectionGesture(gesture,x,stamp){
+  return {...gesture,end:stamp,selecting:gesture.selecting||(Math.abs(x-gesture.x)>=6&&Math.abs(stamp-gesture.start)>=1000)};
+}
+export function selectionFromGesture(gesture){
+  if(!gesture?.selecting||Math.abs(gesture.end-gesture.start)<1000)return null;
+  return {start:Math.min(gesture.start,gesture.end),end:Math.max(gesture.start,gesture.end)};
+}
 export function selectLiveView(view,nodes){
   if(!view?.series||!nodes.length||nodes.some(node=>!Object.hasOwn(view.counts||{},node)))return null;
   const series={...view.series,series:Object.fromEntries(nodes.map(node=>[node,view.series.series?.[node]||[]]))};

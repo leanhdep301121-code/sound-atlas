@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex,nofollow"><title>数据采集 · 声场 SOUND ATLAS</title>
 <script src="collect-theme.js"></script>
-<link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="collect.css"><script type="module" src="collect.js"></script>
+<link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="collect.css"><script type="module" src="collect.js?v=auto-follow-2"></script>
 </head><body>
 <a class="skip-link" href="#collector-main">跳到采集管理</a>
 <header class="topbar">
@@ -59,7 +59,7 @@
       <div class="data-follow-bar"><button type="button" id="data-follow" aria-pressed="true">自动跟随最新</button><span id="data-follow-status" role="status">新记录到达后自动更新曲线与条数。</span></div>
       <section class="manage-filter" aria-labelledby="filter-heading">
         <div class="filter-title"><h3 id="filter-heading"><span class="step-number">1</span>筛选观测</h3><span id="filter-node-count">已选 7 个测点</span></div>
-        <div class="filter-quick" role="group" aria-label="快速选择时段"><button type="button" data-range="hour">最近 1 小时</button><button type="button" data-range="today">今天</button><button type="button" data-range="plan">当前计划</button><button type="button" data-range="all">全部记录</button></div>
+        <div class="filter-quick" role="group" aria-label="快速选择时段"><button type="button" data-range="hour">最近 1 小时</button><button type="button" data-range="today">今天</button><button type="button" data-range="plan" title="选中后持续自动更新，无需反复点击">当前计划</button><button type="button" data-range="all">全部记录</button></div>
         <form class="data-filters" id="data-filter-form"><div><label for="range-start">查询开始 · 北京时间</label><input id="range-start" type="datetime-local" step="1" required></div><div><label for="range-end">查询结束 · 北京时间</label><input id="range-end" type="datetime-local" step="1" required></div><button class="button button-primary" id="apply-filter" type="submit" data-command>应用筛选</button></form>
         <fieldset class="node-filters"><legend>选择测点</legend><div class="node-presets"><button type="button" data-node-choice="all">全选七测点</button><button type="button" data-node-choice="personal">只看个人工位</button><button type="button" data-node-choice="none">清空</button></div><div id="data-nodes"></div><details id="other-node-details" hidden><summary>其他设备记录</summary><div id="other-data-nodes"></div></details></fieldset>
         <p id="query-state" class="query-state" role="status">选择范围后点击“应用筛选”。</p>
