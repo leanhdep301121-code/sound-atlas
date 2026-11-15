@@ -45,13 +45,15 @@ class SnapshotTests(unittest.TestCase):
     def test_confirmed_physical_mapping_and_minimal_payload(self):
         for index, node in enumerate(["N1", "N2", "N3", "N4", "N5"]):
             self.add(node, self.now - 1, 40 + index, online=True)
-        self.add("D1", self.now - 1, 100, online=True)
+        self.add("D1", self.now - 1, 48, online=True)
+        self.add("D2", self.now - 1, 100, online=True)
         snapshot = self.builder.build(self.now)
-        self.assertEqual(snapshot["latest"]["sound"], {"C": 40, "B": 41, "A": 42, "E": 43, "D": 44})
-        self.assertEqual([n["id"] for n in snapshot["nodes"]], ["A", "B", "C", "D", "E"])
+        self.assertEqual(snapshot["latest"]["sound"], {"C": 40, "B": 41, "A": 42, "E": 43, "D": 44, "D1": 48})
+        self.assertEqual([n["id"] for n in snapshot["nodes"]], ["A", "B", "C", "D", "E", "D1"])
         payload = json.dumps(snapshot)
         self.assertNotIn("private-address", payload)
-        self.assertNotIn("D1", payload)
+        self.assertNotIn("D2", payload)
+        self.assertEqual(self.frame(snapshot)["counts"]["D1"], 1)
         self.assertNotIn("reason", payload)
 
     def test_equal_one_second_readings_use_sound_energy(self):

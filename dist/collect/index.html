@@ -14,7 +14,7 @@
 <main class="collector-shell" id="collector-main">
   <header class="collector-header"><div><span class="eyebrow">SOUND ATLAS / COLLECT</span><h1>数据采集</h1><p>让每一次观测，都准确回到空间。</p></div><a class="view-link" href="../">查看声环境图 <span aria-hidden="true">↗</span></a></header>
   <section class="login-panel" id="login-panel" aria-labelledby="login-heading">
-    <div class="login-copy"><span class="small-label">管理入口</span><h2 id="login-heading">连接你的观测。</h2><p>登录后查看设备、安排采集，并管理五张公桌的观测记录。</p><p class="login-note">展示页面可直接分享，采集操作仅向管理者开放。</p></div>
+    <div class="login-copy"><span class="small-label">管理入口</span><h2 id="login-heading">连接你的观测。</h2><p>登录后查看设备、安排采集，并管理五张公桌与 D1 工位的观测记录。</p><p class="login-note">展示页面可直接分享，采集操作仅向管理者开放。</p></div>
     <form id="login-form"><label for="admin-key">管理口令</label><input id="admin-key" type="password" autocomplete="current-password" required maxlength="256" placeholder="输入管理口令"><p class="field-note">口令保存在采集电脑的管理访问文件中。</p><button class="button button-primary" type="submit" id="login-button">进入采集管理 <span aria-hidden="true">↗</span></button><p id="login-status" role="status">正在检查登录状态…</p></form>
   </section>
   <div id="admin-app" hidden>
@@ -22,13 +22,13 @@
     <nav class="collector-tabs" aria-label="采集管理栏目"><button type="button" data-tab="overview" aria-current="page">总览</button><button type="button" data-tab="plan">采集计划</button><button type="button" data-tab="manage">数据管理</button></nav>
     <p class="operation-status" id="operation-status" role="status" hidden></p>
     <section id="panel-overview" class="collector-panel" aria-labelledby="overview-heading">
-      <div class="section-title"><div><h2 id="overview-heading">五张公桌，一起观测。</h2><p>设备按现场位置对应，读数与展示站自动同步。</p></div></div>
+      <div class="section-title"><div><h2 id="overview-heading">公桌与工位，一起观测。</h2><p>设备按现场位置对应，读数与展示站自动同步。</p></div></div>
       <div class="metric-strip"><div><span>在线测点</span><strong id="online-count">—</strong></div><div><span>可用记录</span><strong id="usable-count">—</strong></div><div><span>当前计划</span><strong id="plan-metric">—</strong></div></div>
       <div class="table-scroll"><table class="station-table"><thead><tr><th scope="col">公桌 / 设备</th><th scope="col">位置</th><th scope="col">连接与就绪</th><th scope="col">观测记录</th><th scope="col">最近通信</th></tr></thead><tbody id="station-rows"></tbody></table></div>
       <p class="section-footnote">采集电脑需保持开机联网。数据先保存在本机，展示站自动读取声级摘要。</p>
     </section>
     <section id="panel-plan" class="collector-panel" aria-labelledby="plan-heading" hidden>
-      <div class="section-title"><div><h2 id="plan-heading">让五个测点同时开始。</h2><p>所有采集时间均按北京时间填写与执行。</p></div><span class="status-tag" id="plan-state">—</span></div>
+      <div class="section-title"><div><h2 id="plan-heading">让六个测点同时开始。</h2><p>所有采集时间均按北京时间填写与执行。</p></div><span class="status-tag" id="plan-state">—</span></div>
       <div class="plan-summary"><div><span>开始</span><strong id="current-start">—</strong></div><span class="plan-arrow" aria-hidden="true">→</span><div><span>结束</span><strong id="current-end">—</strong></div></div>
       <form id="plan-form" class="plan-form"><div><label for="plan-start">开始时间 · 北京时间</label><input id="plan-start" type="datetime-local" step="1" required></div><div><label for="plan-end">结束时间 · 北京时间</label><input id="plan-end" type="datetime-local" step="1"><p class="field-note">留空时持续记录，直到统一停止。</p></div><div class="plan-submit"><button class="button button-primary" type="submit" data-command>保存采集计划</button></div></form>
       <div class="plan-shortcuts"><button class="button button-outline" type="button" data-plan-action="quick" data-command>整分开始，连续 7 天</button><button class="button button-outline" type="button" data-plan-action="start_now" data-command>约 30 秒后开始</button><button class="button button-outline" type="button" data-plan-action="stop" data-command>统一停止</button><button class="text-button" type="button" data-plan-action="cancel" data-command>取消计划</button></div>
@@ -39,7 +39,7 @@
       <form class="data-filters" id="data-filter-form"><div><label for="range-start">开始 · 北京时间</label><input id="range-start" type="datetime-local" step="1" required></div><div><label for="range-end">结束 · 北京时间</label><input id="range-end" type="datetime-local" step="1" required></div><button class="button button-primary" type="submit" data-command>查看曲线</button></form>
       <div class="filter-quick" role="group" aria-label="快速选择时段"><button type="button" data-range="plan">计划时段</button><button type="button" data-range="all">全部记录</button><button type="button" data-range="today">今天</button><button type="button" data-range="hour">最近 1 小时</button></div>
       <fieldset class="node-filters"><legend>公桌与设备</legend><div id="data-nodes"></div></fieldset>
-      <div class="chart-area"><div class="chart-heading"><span id="chart-description">选择时段后查看曲线</span><small>曲线为原始读数的分段统计</small></div><canvas id="data-chart" role="img" aria-label="五个节点的声级曲线，可拖动选择时段"></canvas><p id="chart-hover" class="field-note">可在曲线上拖动选取一段时间，也可使用上方时间输入。</p></div>
+      <div class="chart-area"><div class="chart-heading"><span id="chart-description">选择时段后查看曲线</span><small>曲线为原始读数的分段统计</small></div><canvas id="data-chart" role="img" aria-label="六个节点的声级曲线，可拖动选择时段"></canvas><p id="chart-hover" class="field-note">可在曲线上拖动选取一段时间，也可使用上方时间输入。</p></div>
       <div class="selection-bar"><div><span class="small-label">当前操作时段</span><strong id="selection-description">—</strong><p id="selection-count">—</p></div><button class="text-button" id="clear-selection" type="button" hidden>取消图上选区</button></div>
       <form id="exclude-form" class="exclude-form"><div><label for="exclude-reason">排除原因</label><select id="exclude-reason"><option>现场测试</option><option>设备异常</option><option>其他原因</option></select></div><div class="note-field"><label for="exclude-note">备注</label><input id="exclude-note" maxlength="200" placeholder="可选，记录现场情况"></div><button class="button button-outline" type="submit" data-command>排除选定时段</button></form>
       <div class="export-actions"><button class="button button-outline" type="button" id="export-clean" data-command>导出干净数据</button><button class="text-button" type="button" id="export-raw" data-command>导出原始数据</button><button class="text-button" type="button" id="cancel-export" hidden>停止导出</button><span id="export-progress" role="status"></span></div>

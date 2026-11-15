@@ -22,7 +22,7 @@ async function updateSyncStatus() {
     const state = Object.hasOwn(labels, status.state) ? status.state : 'offline';
     syncPanel.dataset.state = state;
     syncLabel.textContent = labels[state];
-    syncDetail.textContent = status.message || (state === 'live' ? '五张公桌的数据自动更新到展示站。' : '本地采集与数据管理仍可继续使用。');
+    syncDetail.textContent = status.message || (state === 'live' ? '公桌与 D1 工位的数据自动更新到展示站。' : '本地采集与数据管理仍可继续使用。');
     const stamp = status.last_success;
     if (stamp && state === 'live') {
       const date = new Date(typeof stamp === 'number' && stamp < 1e12 ? stamp * 1000 : stamp);

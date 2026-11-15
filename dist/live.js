@@ -1,8 +1,8 @@
 'use strict';
 
-// Public snapshots contain only five desk summaries. Device addresses and controls stay on the collector.
+// Public snapshots contain only acoustic measurement summaries. Device addresses and controls stay on the collector.
 const SoundAtlasLive = (() => {
-  const ids = ['A', 'B', 'C', 'D', 'E'];
+  const ids = ['A', 'B', 'C', 'D', 'E', 'D1'];
   const periodFormatter = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
@@ -77,17 +77,17 @@ const SoundAtlasLive = (() => {
 
   function connectionState(snapshot, requestFailed = false, now = Date.now()) {
     if (requestFailed) return { status: 'error', label: '连接中断', detail: '正在自动重连，历史记录仍可查看。', fresh: false };
-    if (!snapshot) return { status: 'connecting', label: '连接采集端', detail: '正在读取五张公桌的观测。', fresh: false };
+    if (!snapshot) return { status: 'connecting', label: '连接采集端', detail: '正在读取公桌与 D1 工位的观测。', fresh: false };
     const age = Math.max(...[snapshot.generatedAt, snapshot.receivedAt].map(value => value ? now - Date.parse(value) : Infinity));
     if (!snapshot.connected || age > 120000) {
       return { status: 'offline', label: snapshot.receivedAt ? '采集端离线' : '等待采集端', detail: '暂未收到新的观测，历史记录可沿时间轴查看。', fresh: false };
     }
     const online = snapshot.nodes.filter(node => node.status === 'online').length;
-    if (!online) return { status: 'waiting', label: '等待测点', detail: '采集端已连接，五个测点暂未在线。', fresh: true };
-    if (snapshot.plan.state === 'waiting') return { status: 'waiting', label: '等待采集开始', detail: online + ' / 5 个测点在线 · 按计划统一开始', fresh: true };
-    if (snapshot.plan.state === 'none') return { status: 'waiting', label: '等待采集计划', detail: online + ' / 5 个测点在线 · 暂未开始记录', fresh: true };
+    if (!online) return { status: 'waiting', label: '等待测点', detail: '采集端已连接，测点暂未在线。', fresh: true };
+    if (snapshot.plan.state === 'waiting') return { status: 'waiting', label: '等待采集开始', detail: online + ' / ' + ids.length + ' 个测点在线 · 按计划统一开始', fresh: true };
+    if (snapshot.plan.state === 'none') return { status: 'waiting', label: '等待采集计划', detail: online + ' / ' + ids.length + ' 个测点在线 · 暂未开始记录', fresh: true };
     if (snapshot.plan.state === 'finished') return { status: 'idle', label: '采集已结束', detail: '历史观测可沿时间轴回放。', fresh: true };
-    return { status: 'online', label: '实时同步', detail: online + ' / 5 个测点在线 · 每 10 秒更新', fresh: true };
+    return { status: 'online', label: '实时同步', detail: online + ' / ' + ids.length + ' 个测点在线 · 每 10 秒更新', fresh: true };
   }
 
   function createPoller({ url = 'api/live', onSnapshot, onError, fetcher = fetch,

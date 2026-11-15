@@ -183,6 +183,14 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(self.worker.execute_command(command),{'id':command['id'],'status':'done','result':{'acknowledged':True}})
         self.assertEqual(self.worker.pending_results(),[{'id':command['id'],'status':'done','result':{'acknowledged':True}}])
 
+    def test_d1_readiness_and_export_use_acoustic_records(self):
+        start=self.add_rows(node='D1')
+        state=self.worker.management_state(force=True)
+        self.assertIn('D1',[node['node'] for node in state['readiness']])
+        receipt=self.worker.execute_command(self.command('export',{'start':start-1,'end':start+10000,'nodes':['D1'],'clean':True,'limit':100}))
+        self.assertEqual(receipt['status'],'done')
+        self.assertIn('D1,',receipt['result']['csv'])
+
     def test_journal_maintenance_keeps_unacked_and_executing_and_runs_hourly(self):
         from remote_control import RECEIPT_TTL_SECONDS
         now=self.now

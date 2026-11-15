@@ -114,7 +114,7 @@ function drawHeatmap(frame) {
 
   const samples = heatmapSamples(frame);
   const enough = samples.length >= 2;
-  byId('heatmap-count').textContent = samples.length + ' / 5 个测点';
+  byId('heatmap-count').textContent = samples.length + ' / ' + TABLES.length + ' 个测点';
   byId('heatmap-note').textContent = enough
     ? '监测工位与内走廊的插值估计，未模拟墙体传播。'
     : '这一时段不足两个有效声级测点，热力分布暂空。';

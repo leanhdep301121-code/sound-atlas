@@ -194,8 +194,8 @@ function render() {
     : state.mode === 'live' && followLive && (!connection.fresh || selectedHealth?.status !== 'online')
       ? '当前显示已保存观测，测点暂未在线。'
       : state.mode === 'live' && frame.counts?.[selected.id] ? frame.counts[selected.id].toLocaleString('zh-CN') + ' 个有效样本' : '';
-  byId('comparison-heading').textContent = '同一时段的公桌';
-  const measured = TABLES.filter(node => frame.sound[node.id] != null);
+  byId('comparison-heading').textContent = '同一时段的测点';
+  const measured = TABLES.filter(node => node.kind !== 'personal' && frame.sound[node.id] != null);
   const lowest = measured.reduce((quietest, node) =>
     !quietest || frame.sound[node.id] < frame.sound[quietest.id] ? node : quietest, null);
   byId('inspection-foot').textContent = measured.length > 1

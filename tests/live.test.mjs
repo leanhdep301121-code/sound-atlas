@@ -49,7 +49,7 @@ test('instant readings do not overwrite half-hour LAeq and unknown fields are no
   input.days[0].frames[29].sound.B = null;
   const snapshot = live.normalizeSnapshot(input);
   assert.deepEqual(plain(snapshot.days[0].frames[29].sound), { A: 52.3, C: 48.2 });
-  assert.equal(snapshot.nodes.length, 5);
+  assert.equal(snapshot.nodes.length, 6);
 });
 
 test('malformed API dates/frames and unsupported schemas fail clearly', () => {

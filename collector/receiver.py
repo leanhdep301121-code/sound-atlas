@@ -44,7 +44,7 @@ COLUMNS = ["laeq", "lafmax"] + BANDS
 UPLOAD_ORDER = ["laeq", "lafmax", "b125", "b250", "b500", "b1k", "b2k", "b4k", "b63", "b8k"]
 INVALID_SQL = "(laeq <= 0 OR laeq > 140)"      # 没有麦克风信号时 LAeq 约为 -80
 VALID_SQL = "(laeq > 0 AND laeq <= 140)"
-EXPECTED_NODES = ["N1", "N2", "N3", "N4", "N5"]   # 五张公桌；旧入口数据仍保留在数据管理中
+EXPECTED_NODES = ["N1", "N2", "N3", "N4", "N5", "D1"]   # 五张公桌与个人工位 D1
 MIN_LEAD_S = 30          # 开始时间至少比现在晚 30 秒（节点每 10 秒查询一次计划，留足余量）
 STOP_LEAD_S = 15         # "统一停止"设在 15 秒后，保证所有节点都能收到同一个结束时间
 ONLINE_S = 75            # 节点每 30 秒上传一次，超过 75 秒没消息就算离线
@@ -163,9 +163,9 @@ def node_readiness(now=None):
     return out
 
 
-NODE_LABELS = {"N1": "公桌 3", "N2": "公桌 2", "N3": "公桌 1", "N4": "公桌 B", "N5": "公桌 A"}
+NODE_LABELS = {"N1": "公桌 3", "N2": "公桌 2", "N3": "公桌 1", "N4": "公桌 B", "N5": "公桌 A", "D1": "工位 D1"}
 NODE_PLACES = {"N1": "右下工位区", "N2": "中下工位区", "N3": "左下工位区", "N4": "右上工位区",
-               "N5": "左上工位区", "D1": "历史入口节点", "D2": "历史入口节点"}
+               "N5": "左上工位区", "D1": "公桌3右侧，东墙最南端单人工位", "D2": "历史入口节点"}
 
 
 def short_time(ms):
@@ -422,8 +422,8 @@ def page(title, body, active="/", refresh=False):
                   for h, t in NAV)
     now_ms = int(time.time() * 1000)
     headings = {
-        "/": ("采集总览", "从五张公桌，听见空间的变化。查看设备状态与最新读数。"),
-        "/control": ("采集计划", "让五个节点按同一时钟开始与结束，保留完整的观测过程。"),
+        "/": ("采集总览", "从公桌到个人工位，听见空间的变化。查看设备状态与最新读数。"),
+        "/control": ("采集计划", "让六个节点按同一时钟开始与结束，保留完整的观测过程。"),
         "/manage": ("数据管理", "沿时间轴检查观测，排除异常片段，保留可以追溯的原始数据。"),
     }
     heading, lead = headings.get(active, (title, "二层开放工位的声环境观测。"))
@@ -501,10 +501,10 @@ def status_page(params=None):
     body = f"""{msg_html(params)}
 {state_card("/")}
 <section class="card" style="padding-bottom:12px">
-<div class="section-heading"><h2>五张公桌</h2>
+<div class="section-heading"><h2>五张公桌与 D1 工位</h2>
 <span class="small muted">{n_ok} / {len(order)} 正常 · 每 10 秒刷新</span></div>
 <div class="scroll"><table class="t status-table" style="min-width:600px;margin-top:8px">
-<tr><th>公桌 / 设备</th><th>位置</th><th>状态</th><th class="num">当前 dB(A)</th><th class="num">最后上传</th></tr>
+<tr><th>测点 / 设备</th><th>位置</th><th>状态</th><th class="num">当前 dB(A)</th><th class="num">最后上传</th></tr>
 {"".join(trs)}</table></div>
 </section>"""
     return page("总览", body, "/", refresh=True)
@@ -519,7 +519,7 @@ MANAGE_BODY = r'''
 <a class="btn" href="/export.csv?clean=0">导出原始数据</a></div>
 </div>
 <div id="usable" class="small muted" style="margin-top:-12px;line-height:1.7"></div>
-<div class="table-mapping" aria-label="设备与公桌对应关系"><span><b>公桌 1</b>N3</span><span><b>公桌 2</b>N2</span><span><b>公桌 3</b>N1</span><span><b>公桌 A</b>N5</span><span><b>公桌 B</b>N4</span></div>
+<div class="table-mapping" aria-label="设备与公桌对应关系"><span><b>公桌 1</b>N3</span><span><b>公桌 2</b>N2</span><span><b>公桌 3</b>N1</span><span><b>公桌 A</b>N5</span><span><b>公桌 B</b>N4</span><span><b>个人工位</b>D1</span></div>
 
 <section class="card" style="padding:20px 24px">
 <div class="row">
@@ -579,7 +579,7 @@ MANAGE_BODY = r'''
 
 MANAGE_JS = r'''<script>
 const BJ = 8 * 3600e3, $ = s => document.querySelector(s), pad = n => String(n).padStart(2, '0');
-const TABLE_NAMES = {N1:'公桌 3',N2:'公桌 2',N3:'公桌 1',N4:'公桌 B',N5:'公桌 A'};
+const TABLE_NAMES = {N1:'公桌 3',N2:'公桌 2',N3:'公桌 1',N4:'公桌 B',N5:'公桌 A',D1:'工位 D1'};
 function fmt(ms) { const d = new Date(ms + BJ);
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`; }
 const fmtS = ms => fmt(ms).slice(5, 16);

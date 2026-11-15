@@ -57,7 +57,17 @@ class ReceiverIntegration(unittest.TestCase):
                 for page in [receiver.status_page(),receiver.control_page({}),receiver.manage_page()]:
                     self.assertIn('/static/collector.css',page)
                     self.assertIn('声场',page)
-                self.assertEqual(receiver.EXPECTED_NODES,['N1','N2','N3','N4','N5'])
+                self.assertEqual(receiver.EXPECTED_NODES,['N1','N2','N3','N4','N5','D1'])
+                payload['node']='D1'
+                handler.read_body=lambda:json.dumps(payload).encode()
+                handler.handle_upload()
+                receiver.SYNC_BRIDGE.invalidate()
+                d1=receiver.SYNC_BRIDGE.snapshot()
+                d1_values=[f['sound']['D1'] for d in d1['days'] for f in d['frames'] if 'D1' in f['sound']]
+                self.assertEqual(len(d1_values),1)
+                self.assertAlmostEqual(d1_values[0],10*math.log10((10**5+10**6)/2),places=3)
+                self.assertEqual(receiver.get_plan(),plan)
+                self.assertIn('D1',receiver.status_page())
                 receiver.SYNC_BRIDGE.stop()
                 receiver.conn.close()
             finally:

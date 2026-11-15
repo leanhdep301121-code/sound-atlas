@@ -7,6 +7,7 @@ const TABLES = [
   {node:'N1',name:'公桌 3',marker:'3',place:'右下 · 邻近网络机房'},
   {node:'N5',name:'公桌 A',marker:'A',place:'左上 · 邻近卫生间'},
   {node:'N4',name:'公桌 B',marker:'B',place:'右上 · 邻近会议室'},
+  {node:'D1',name:'工位 D1',marker:'D1',place:'公桌3右侧 · 东墙最南端'},
 ];
 const names = Object.fromEntries(TABLES.map(table => [table.node,table.name]));
 const num = value => Number(value || 0).toLocaleString('zh-CN');
@@ -76,7 +77,7 @@ function renderState() {
   $('connection-message').textContent=connected?'远程操作会由采集电脑执行。':'请保持采集电脑开机联网，并运行接收程序。';
   $('last-sync').textContent=state?.receivedAt?'最近同步 '+formatBeijing(Date.parse(state.receivedAt)).slice(5):'尚未收到采集端状态';
   const online=TABLES.filter(table=>connected&&readinessFor(table.node).online).length;
-  $('online-count').textContent=online+' / 5';
+  $('online-count').textContent=online+' / '+TABLES.length;
   $('usable-count').textContent=num((overview.nodes||[]).reduce((sum,node)=>sum+(node.usable||0),0));
   $('plan-metric').textContent=planNames[plan.state]||'—';
   $('station-rows').innerHTML=TABLES.map(table=>{

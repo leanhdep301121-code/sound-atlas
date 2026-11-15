@@ -30,6 +30,7 @@ NODE_MAP = {
     "N1": ("C", "公桌 3"),
     "N5": ("D", "公桌 A"),
     "N4": ("E", "公桌 B"),
+    "D1": ("D1", "工位 D1"),
 }
 
 
@@ -142,7 +143,7 @@ class SnapshotBuilder:
                     buckets_before, pending_before = self._buckets, self._pending
                     self._buckets, self._pending = {}, []
                     rows = db.execute(
-                        "SELECT node,ts_ms,laeq FROM readings WHERE node IN (?,?,?,?,?) "
+                        f"SELECT node,ts_ms,laeq FROM readings WHERE node IN ({','.join('?' for _ in NODE_MAP)}) "
                         "AND ts_ms>=? AND ts_ms<? ORDER BY node,ts_ms",
                         (*NODE_MAP, lower, min(end_ms or now_ms + 60_001, now_ms + 60_001)),
                     )
@@ -176,7 +177,7 @@ class SnapshotBuilder:
                             self._pending.append((node, stamp, level))
                     node_rows = {
                         row[0]: row[1]
-                        for row in db.execute("SELECT node,last_seen FROM nodes WHERE node IN (?,?,?,?,?)", tuple(NODE_MAP))
+                        for row in db.execute(f"SELECT node,last_seen FROM nodes WHERE node IN ({','.join('?' for _ in NODE_MAP)})", tuple(NODE_MAP))
                     }
                     live_values = {}
                     live_stamps = []
@@ -372,7 +373,7 @@ class LiveBridge:
                 return False
             with self._lock:
                 self._last_attempt = now
-            self._set_state("syncing", "正在同步五张公桌的声级摘要。")
+            self._set_state("syncing", "正在同步公桌与 D1 工位的声级摘要。")
             self._poster(config["endpoint"], config["token"], payload)
             with self._lock:
                 self._last_success = now
