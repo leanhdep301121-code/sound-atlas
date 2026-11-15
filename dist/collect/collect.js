@@ -10,12 +10,13 @@ const TABLES = [
   {node:'N5',name:'公桌 A',marker:'A',place:'左上 · 邻近卫生间'},
   {node:'N4',name:'公桌 B',marker:'B',place:'右上 · 邻近会议室'},
   {node:'D1',name:'工位 D1',marker:'D1',place:'公桌3右侧 · 东墙最南端'},
+  {node:'D2',name:'宿舍 D2',marker:'D2',place:'宿舍 · 独立观测，不参与二层热力'},
 ];
 const names = Object.fromEntries(TABLES.map(table => [table.node,table.name]));
 const num = value => Number(value || 0).toLocaleString('zh-CN');
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const planNames = {none:'未设置',waiting:'等待开始',recording:'正在采集',finished:'已结束'};
-const actionNames = {overview:'读取观测总览',series:'读取声级曲线',count:'统计选定记录',suspects:'检查可疑数据',plan:'保存采集计划',exclude:'排除选定时段',unexclude:'撤销排除',export:'导出观测记录',purge:'核对与处理删除'};
+const actionNames = {overview:'读取观测总览',series:'读取声级曲线',count:'统计选定记录',suspects:'检查可疑数据',plan:'保存采集计划',exclude:'排除选定时段',unexclude:'撤销排除',export:'导出观测记录',purge:'核对与处理删除',calibration:'处理校准任务'};
 let authenticated=false, state=null, currentTab='overview', statePending=false, busy=false, planDirty=false;
 let series=null, selection=null, selectedNodes=new Set(TABLES.map(table=>table.node));
 let dataLoaded=false, exportController=null, chartDrag=null;
@@ -44,7 +45,7 @@ function setBusy(value) {
   document.querySelectorAll('[data-command]').forEach(button=>button.disabled=value||!state?.connected);
   $('logout').disabled=value;
   document.querySelectorAll('.collector-panel').forEach(panel=>panel.setAttribute('aria-busy',String(value)));
-  syncManageControls();
+  syncManageControls();renderCalibration();
 }
 function requireOnline() { if(!state?.connected)throw new AdminError('采集电脑当前离线，恢复连接后可进行操作。'); }
 async function perform(action,payload,{success='',signal}={}) {
@@ -92,9 +93,9 @@ function renderMonitor() {
     const recent=item.history.length>0;
     const last=Number.isFinite(obs.laeq)?obs.laeq.toFixed(1)+' dB(A)':'—';
     return `<article class="monitor-station" data-tone="${item.tone}" aria-label="${table.name}实时监测">
-      <header><div class="monitor-name"><span class="station-marker">${table.marker}</span><div><h3>${table.name}</h3><span>${table.node}${table.node==='D1'?' · 个人工位':' · 声级节点'}</span></div></div><span class="monitor-status">${item.status}</span></header>
+      <header><div class="monitor-name"><span class="station-marker">${table.marker}</span><div><h3>${table.name}</h3><span>${table.node}${table.node==='D2'?' · 宿舍':table.node==='D1'?' · 个人工位':' · 声级节点'}</span></div></div><span class="monitor-status">${item.status}</span></header>
       <p class="monitor-place">${table.place}</p>
-      <div class="monitor-reading"><strong>${item.value===null?'—':item.value.toFixed(1)}</strong><div><span>dB(A)</span><small>最新 1 秒 LAeq</small></div></div>
+      <div class="monitor-reading"><strong>${item.value===null?'—':item.value.toFixed(1)}</strong><div><span>dB(A)</span><small>${obs.correctionDb?'相对校正 · 1 秒 LAeq':'最新 1 秒 LAeq'}</small></div></div>
       <p class="sample-age">${Number.isFinite(item.age)?'数据 '+ageLabel(item.age)+(item.fresh?'':' · 上次 '+last):'等待第一条有效观测'}</p>
       <div class="monitor-spark"><svg viewBox="0 0 400 62" preserveAspectRatio="none" role="img" aria-label="${table.name}近五分钟声级曲线，统一30至90分贝刻度"><path class="spark-guide" d="M0,31 H400"/><path class="spark-line" d="${sparkPath(item.history,now)}"/></svg>${recent?'':'<span class="spark-empty">近 5 分钟暂无有效数据</span>'}</div>
       <div class="spark-axis"><span>5 分钟前</span><span>现在</span></div>
@@ -141,7 +142,7 @@ function renderState() {
   $('backup-summary').textContent=(overview.backups||[]).length?'最近本机备份：'+overview.backups.slice(0,3).map(item=>`${item.name}（${item.mb} MB）`).join('；'):'本机还没有列出的备份。';
   if(!$('range-start').value)chooseRange('all',false);
   setBusy(busy);
-  renderMonitor();
+  renderMonitor();renderCalibration();
 }
 async function refreshState(silent=false) {
   if(!authenticated||statePending||document.hidden)return;
@@ -164,7 +165,7 @@ $('collector-theme').addEventListener('click',()=>{const theme=document.document
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
   currentTab=button.dataset.tab;
   document.querySelectorAll('[data-tab]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));
-  for(const tab of ['overview','plan','manage'])$('panel-'+tab).hidden=tab!==currentTab;
+  for(const tab of ['overview','plan','manage','calibration'])$('panel-'+tab).hidden=tab!==currentTab;
   if(currentTab==='manage'){drawChart();if(!dataLoaded&&state?.connected)loadSeries();}
 }));
 $('plan-start').addEventListener('input',()=>{planDirty=true;});$('plan-end').addEventListener('input',()=>{planDirty=true;});
@@ -193,7 +194,7 @@ function draftKey(){try{return scopeKey(filterRange(),[...selectedNodes]);}catch
 function queryIsCurrent(){return Boolean(appliedQuery&&draftKey()===scopeKey(appliedQuery,appliedQuery.nodes));}
 function syncManageControls(){
   const valid=queryIsCurrent();
-  for(const id of ['export-clean','export-raw','scan-suspects','purge-range','refresh-count','apply-selection'])$(id).disabled=busy||!state?.connected||!valid;
+  for(const id of ['export-clean','export-raw','export-corrected','scan-suspects','purge-range','refresh-count','apply-selection'])$(id).disabled=busy||!state?.connected||!valid;
   $('exclude-form').querySelector('button[type=submit]').disabled=busy||!state?.connected||!valid;
   $('zoom-selection').disabled=busy||!valid||!selection;
   $('clear-selection').disabled=busy;
@@ -238,6 +239,52 @@ $('selection-form').addEventListener('submit',event=>{
   try{const start=parseBeijing($('selection-start').value),end=parseBeijing($('selection-end').value);if(!start||!end)throw new Error('请填写完整的选区时间。');operationScope(appliedQuery,{start,end},draftKey());selection={start,end};drawChart();updateSelectionDescription();scheduleScopeCount();}catch(error){handleError(error);}
 });
 $('zoom-selection').addEventListener('click',()=>{if(!selection||!queryIsCurrent())return;$('range-start').value=beijingInput(selection.start);$('range-end').value=beijingInput(selection.end);markFiltersDirty();loadSeries();});
+
+function renderCalibration(){
+  if(!authenticated)return;
+  const calibration=state?.calibration||{},run=calibration.run,report=run?.report,active=calibration.active;
+  const now=Date.now();
+  const phase=run?.phase||'none';
+  const phaseNames={none:'尚未开始',waiting:'等待统一开始',recording:'正在记录',uploading:'等待最后上传',finished:'记录完成',cancelled:'已取消'};
+  $('calibration-phase').textContent=phaseNames[phase]||'尚未开始';
+  const remaining=phase==='waiting'?Math.max(0,Math.ceil((run.startMs-now)/1000)):phase==='recording'?Math.max(0,Math.ceil((run.endMs-now)/1000)):phase==='uploading'?Math.max(0,Math.ceil((run.endMs+45000-now)/1000)):null;
+  $('calibration-countdown').textContent=remaining===null?(phaseNames[phase]||'准备设备'):Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0');
+  $('calibration-period').textContent=run?formatBeijing(run.startMs,true)+' — '+formatBeijing(run.endMs,true):'尚未安排五分钟采集';
+  $('calibration-common').textContent=(run?.commonSeconds||0)+' / 300';
+  const prepared=TABLES.every(table=>{const row=readinessFor(table.node);return state?.connected&&row.online&&row.synced&&row.mic&&row.planSynced;});
+  $('calibration-devices').innerHTML=TABLES.map(table=>{const row=readinessFor(table.node);return `<tr><td><strong>${table.name}</strong><small>${table.node}</small></td><td>${esc(row.message||'等待连接')}</td><td>${run?.counts?.[table.node]||0} / 300</td><td>${Number.isFinite(run?.rawLevels?.[table.node])?run.rawLevels[table.node].toFixed(1)+' dB(A)':'—'}</td></tr>`;}).join('');
+  const pending=['waiting','recording','uploading'].includes(phase);
+  $('calibration-start').disabled=busy||!prepared||pending;
+  $('calibration-analyze').disabled=busy||!state?.connected||phase!=='finished';
+  $('calibration-cancel').disabled=busy||!state?.connected||!pending||run?.restored;
+  $('calibration-restore').disabled=busy||!state?.connected||!run||run.restored||!['finished','uploading'].includes(phase);
+  $('calibration-results').hidden=!report;
+  if(report){
+    $('calibration-report-rows').innerHTML=report.results.map(row=>`<tr><td>${esc(names[row.node]||row.node)}<small>${row.node}</small></td><td><strong>${Number.isFinite(row.offset)?(row.offset>=0?'+':'')+row.offset.toFixed(3):'—'}</strong></td><td>${row.beforeRmse?.toFixed(2)??'—'}</td><td>${row.afterRmse?.toFixed(2)??'—'}</td><td>${row.mad?.toFixed(2)??'—'}</td></tr>`).join('');
+    $('calibration-warnings').hidden=!report.warnings?.length;$('calibration-warnings').textContent=(report.warnings||[]).join(' ');
+  }
+  $('calibration-apply').disabled=busy||!state?.connected||!report?.canApply||Boolean(run?.applied);
+  $('calibration-active-copy').textContent=active?'自 '+formatBeijing(active.start,true)+' 起，相对修正：'+Object.entries(active.offsets||{}).map(([node,value])=>node+' '+(value>=0?'+':'')+value.toFixed(3)+' dB').join('；'):'尚未启用新的相对修正。历史记录仍按当时的版本保留。';
+  $('calibration-disable').disabled=busy||!state?.connected||!active;
+}
+async function calibrationAction(operation){
+  try{
+    if(busy)return;requireOnline();const run=state?.calibration?.run,report=run?.report;
+    const descriptions={
+      start:['开始七板五分钟相对校准？','请确认七块麦克风已并排、同高同向，且保持不动。约45秒后统一开始，采集300秒。当前采集计划会暂时替换；本时段自动标记为校准并从日常分析中排除，原始记录保留。完成后请点击“恢复原采集计划”。'],
+      apply:['应用相对修正？','只对应用之后的新观测LAeq生效。原始值不修改，倍频程数据不修正。此结果不能证明绝对声级准确。\n'+(report?.results||[]).map(r=>r.node+'：'+(r.offset>=0?'+':'')+r.offset?.toFixed(3)+' dB').join('；')+'\n'+(report?.warnings||[]).join('\n')],
+      restore:['恢复原采集计划？','恢复启动校准前的开始/结束时间。板子放回各自位置后，按原计划继续记录。'],
+      cancel:['取消校准并恢复原计划？','保留已收到的原始记录，已进行的校准片段仍单独标记。'],
+      disable:['停用之后的修正？','之后的新记录不再叠加修正量，历史修正版本和所有原始记录保留。']};
+    if(operation!=='analyze'&&!await confirmOperation(...descriptions[operation]))return;
+    const payload={operation,...(operation==='start'?{planVersion:currentPlan().version}:{}),...(['analyze','apply','restore','cancel'].includes(operation)?{runId:run.id}:{}),...(operation==='apply'?{fingerprint:report.fingerprint}:{})};
+    const result=await perform('calibration',payload,{success:operation==='analyze'?'相对修正已计算，请核对结果。':'采集端已完成校准操作。'});
+    if(result.run!==undefined)state.calibration=result;
+    await refreshState(true);renderCalibration();
+  }catch(error){handleError(error);}
+}
+for(const op of ['start','analyze','apply','restore','cancel','disable'])$('calibration-'+op).addEventListener('click',()=>calibrationAction(op));
+$('calibration-download').addEventListener('click',()=>{const report=state?.calibration?.run?.report;if(!report)return;const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const anchor=document.createElement('a');anchor.href=url;anchor.download='sound-atlas-relative-calibration-'+report.runId+'.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 
 function filterRange() {
   const start=parseBeijing($('range-start').value),end=parseBeijing($('range-end').value);
@@ -352,13 +399,13 @@ $('scan-suspects').addEventListener('click',async()=>{
   }catch(error){handleError(error);}
 });
 
-async function exportData(clean) {
+async function exportData(clean,corrected=false) {
   let writable=null;
   if(busy)return;
   try{
     requireOnline();const range=operationRange(),nodes=dataNodes();
     setBusy(true);
-    const filename='sound-atlas-'+(clean?'clean':'raw')+'-'+beijingInput(Date.now()).slice(0,10)+'.csv';
+    const filename='sound-atlas-'+(corrected?'corrected':clean?'clean':'raw')+'-'+beijingInput(Date.now()).slice(0,10)+'.csv';
     // Obtain the destination while this is still a direct user gesture, then write one page at a time.
     if(typeof window.showSaveFilePicker==='function'){
       try {
@@ -371,7 +418,7 @@ async function exportData(clean) {
     exportController=new AbortController();$('cancel-export').hidden=false;setBusy(true);
     let cursor=null,lastCursor='',pages=0,rows=0,bytes=0,header='',outputName=filename;const chunks=[];const encoder=new TextEncoder();
     while(true){
-      const result=await client.command('export',{...range,nodes,clean,cursor,limit:1000},{signal:exportController.signal});
+      const result=await client.command('export',{...range,nodes,clean,corrected,cursor,limit:1000},{signal:exportController.signal});
       const chunk=exportChunk(result);
       if(pages===0){header=chunk.header;outputName=chunk.filename||filename;const prefix='\ufeff'+header+'\n';if(writable)await writable.write(prefix);else chunks.push(prefix);bytes+=encoder.encode(prefix).length;}
       else if(chunk.header&&chunk.header!==header)throw new AdminError('导出字段发生变化，请重新导出。');
@@ -387,6 +434,7 @@ async function exportData(clean) {
   }catch(error){if(writable)try{await writable.abort();}catch{}if(error.name==='AbortError'){operation('已取消导出，未完成文件未提交。');$('export-progress').textContent='已取消';}else handleError(error);}
   finally{exportController=null;$('cancel-export').hidden=true;setBusy(false);}
 }
+$('export-corrected').addEventListener('click',()=>exportData(true,true));
 $('export-clean').addEventListener('click',()=>exportData(true));$('export-raw').addEventListener('click',()=>exportData(false));$('cancel-export').addEventListener('click',()=>exportController?.abort());
 
 async function purge(mode) {
@@ -404,6 +452,6 @@ async function purge(mode) {
 $('purge-range').addEventListener('click',()=>purge('range'));$('purge-outside').addEventListener('click',()=>purge('outside_plan'));
 
 setInterval(()=>refreshState(true),5000);
-setInterval(()=>{if(authenticated&&!document.hidden)renderMonitor();},1000);
+setInterval(()=>{if(authenticated&&!document.hidden){renderMonitor();renderCalibration();}},1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshState(true);});
 (async()=>{try{const session=await client.session();if(!session.authenticated){showLogin();return;}authenticated=true;$('login-panel').hidden=true;$('admin-app').hidden=false;$('logout').hidden=false;await refreshState();}catch(error){showLogin(errorMessage(error));}})();

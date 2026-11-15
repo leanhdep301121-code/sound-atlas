@@ -67,6 +67,8 @@ const TABLES = [
     "cadY": 136740.20500000002
   }
 ];
+// Dormitory readings have no coordinates in the second-floor plan.
+const OBSERVATION_NODES = [...TABLES, {id:'D2',marker:'D2',name:'宿舍 D2',location:'宿舍独立测点，不参与二层热力图',kind:'remote'}];
 const SLOTS = 48;
 const INITIAL_SLOT = 29;
 const weekday = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -83,10 +85,10 @@ function createDemo() {
     frames: Array.from({ length: SLOTS }, (_, slot) => {
       const hour = slot / 2;
       const activity = (day >= 5 ? .57 : 1) * (12 * peak(hour, 10.5, 3) + 18 * peak(hour, 15, 3) + 7 * peak(hour, 19, 2.4));
-      const sound = Object.fromEntries(TABLES.map(({ id }, index) => {
+      const sound = Object.fromEntries(OBSERVATION_NODES.map(({ id }, index) => {
         const wave = Math.sin(slot * .7 + index * 1.3 + day) * 1.7;
         const discussion = (index === 0 ? 8 : index === 2 ? 7 : 2) * peak(hour, 14.8 + index * .65, 1.18);
-        return [id, rounded(32.8 + index * .8 + activity * [1, .82, .92, .61, .73, .68][index] + discussion + wave)];
+        return [id, rounded(32.8 + index * .8 + activity * [1, .82, .92, .61, .73, .68, .55][index] + discussion + wave)];
       }));
       return { sound };
     }),
@@ -140,7 +142,7 @@ function parseObservation(csv) {
   }
   const columns = Object.fromEntries(header.map((name, index) => [name, index]));
   const days = new Map();
-  const tableIds = new Set(TABLES.map(node => node.id));
+  const tableIds = new Set(OBSERVATION_NODES.map(node => node.id));
   // Legacy CSV exports may still contain retired entrance sensors.
   const retiredIds = new Set(['W', 'EAST']);
   const seen = new Set();
@@ -151,7 +153,7 @@ function parseObservation(csv) {
     if (row.length !== header.length) bad('列数与表头不一致。');
     const id = get('node').toUpperCase();
     if (retiredIds.has(id)) return;
-    if (!tableIds.has(id)) bad('测点编号需为 A、B、C、D、E 或 D1。');
+    if (!tableIds.has(id)) bad('测点编号需为 A、B、C、D、E 、D1 或 D2。');
     const stamp = get('timestamp');
     const date = new Date(stamp);
     if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/i.test(stamp) || !Number.isFinite(+date)) {
@@ -175,7 +177,7 @@ function parseObservation(csv) {
     if (frame.sound[id].duration > 1800) bad('该测点半小时内的采样时长超过 1800 秒。');
     if (!earliest || +date < earliest.stamp) earliest = { label, slot, stamp: +date, id };
   });
-  if (!earliest) throw new Error('文件中没有声级记录。请加入 A 至 E 或 D1 测点的观测记录后重试。');
+  if (!earliest) throw new Error('文件中没有声级记录。请加入 A 至 E 、D1 或 D2 测点的观测记录后重试。');
   const series = [...days.keys()].sort().map(label => ({
     label,
     frames: days.get(label).map(frame => ({
@@ -193,4 +195,5 @@ const CSV_TEMPLATE = [
   '2026-11-09T14:30:00+08:00,D,47.8,10',
   '2026-11-09T14:30:00+08:00,E,50.2,10',
   '2026-11-09T14:30:00+08:00,D1,48.6,10',
+  '2026-11-09T14:30:00+08:00,D2,46.8,10',
 ].join('\r\n') + '\r\n';

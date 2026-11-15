@@ -19,7 +19,7 @@ const syncTime = new Intl.DateTimeFormat('zh-CN', {
   hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
 });
 
-for (const node of TABLES) {
+for (const node of OBSERVATION_NODES) {
   const item = document.createElement('span');
   item.className = 'live-node';
   const name = document.createElement('strong');
@@ -52,8 +52,9 @@ for (const node of nodes) {
 function fillOptions(select, options) {
   select.replaceChildren(...options.map(([label, value]) => new Option(label, value)));
 }
-fillOptions(byId('trend-table'), TABLES.map(node => [node.name, node.id]));
+fillOptions(byId('trend-table'), OBSERVATION_NODES.map(node => [node.name, node.id]));
 
+byId('dorm-select').addEventListener('click',()=>{selectNode('D2');announce();});
 const comparisonButtons = new Map();
 for (const node of nodes) {
   const button = document.createElement('button');
@@ -69,7 +70,7 @@ for (const node of nodes) {
 }
 
 function selectNode(id) {
-  if (!TABLES.some(node => node.id === id)) return;
+  if (!OBSERVATION_NODES.some(node => node.id === id)) return;
   if (state.layer !== 'heatmap') state.layer = 'sound';
   state.table = id;
   render();
@@ -112,7 +113,7 @@ function labelValue(node, frame) {
 }
 
 function announce() {
-  const node = nodes.find(point => point.id === state.table);
+  const node = OBSERVATION_NODES.find(point => point.id === state.table);
   byId('change-announcement').textContent = state.days[state.day].label + ' ' + clockLabel(state.slot) + '，' +
     node.name + '，' + labelValue(node, state.days[state.day].frames[state.slot]);
 }
@@ -127,10 +128,11 @@ function renderSourceStatus() {
   byId('live-updated').textContent = liveMode
     ? liveSnapshot?.receivedAt ? '最近同步 ' + syncTime.format(new Date(liveSnapshot.receivedAt)) : '尚未同步'
     : '';
+  if(liveMode&&liveSnapshot?.correctionApplied)byId('live-detail').textContent+=' · 记录按生效时间使用相对校正';
   byId('return-live').hidden = liveMode && followLive;
   byId('refresh-live').hidden = !liveMode;
   byId('live-nodes').hidden = !liveMode;
-  for (const node of TABLES) {
+  for (const node of OBSERVATION_NODES) {
     const record = liveSnapshot?.nodes.find(item => item.id === node.id);
     const health = connection.fresh ? record?.status ?? 'unknown' : 'unknown';
     const elements = liveNodeLabels.get(node.id);
@@ -172,7 +174,7 @@ function returnToLive() {
 function render() {
   const date = state.days[state.day];
   const frame = date.frames[state.slot];
-  const selected = TABLES.find(node => node.id === state.table);
+  const selected = OBSERVATION_NODES.find(node => node.id === state.table);
   const sound = frame.sound[selected.id];
   const connection = renderSourceStatus();
   byId('day').value = String(state.day);
@@ -211,8 +213,10 @@ function render() {
     row.button.setAttribute('aria-pressed', node.id === selected.id);
     row.reading.textContent = value;
   }
+  byId('dorm-reading').textContent=labelValue(OBSERVATION_NODES.find(node=>node.id==='D2'),frame);
+  byId('dorm-select').setAttribute('aria-pressed',String(state.table==='D2'));
   byId('trend-table').value = state.table;
-  byId('chart-table-name').textContent = TABLES.find(node => node.id === state.table).name;
+  byId('chart-table-name').textContent = OBSERVATION_NODES.find(node => node.id === state.table).name;
   if (mapView === 'plan') drawPlan(frame);
   drawHeatmap(frame);
   updateSpatialView(frame, selected.id);
@@ -326,7 +330,7 @@ function drawCharts(frames) {
   const sound = frames.map(frame => frame.sound[state.table]);
   const soundChart = byId('sound-chart');
   const time = clockLabel(state.slot);
-  soundChart.setAttribute('aria-label', TABLES.find(node => node.id === state.table).name + ' 当日声级，' + time + ' ' +
+  soundChart.setAttribute('aria-label', OBSERVATION_NODES.find(node => node.id === state.table).name + ' 当日声级，' + time + ' ' +
     (sound[state.slot] == null ? '无记录' : sound[state.slot].toFixed(1) + ' dB(A)'));
   drawChart(soundChart, sound);
 }

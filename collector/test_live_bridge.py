@@ -46,15 +46,28 @@ class SnapshotTests(unittest.TestCase):
         for index, node in enumerate(["N1", "N2", "N3", "N4", "N5"]):
             self.add(node, self.now - 1, 40 + index, online=True)
         self.add("D1", self.now - 1, 48, online=True)
-        self.add("D2", self.now - 1, 100, online=True)
+        self.add("D2", self.now - 1, 46, online=True)
+        self.add("OLD", self.now - 1, 100, online=True)
         snapshot = self.builder.build(self.now)
-        self.assertEqual(snapshot["latest"]["sound"], {"C": 40, "B": 41, "A": 42, "E": 43, "D": 44, "D1": 48})
-        self.assertEqual([n["id"] for n in snapshot["nodes"]], ["A", "B", "C", "D", "E", "D1"])
+        self.assertEqual(snapshot["latest"]["sound"], {"C": 40, "B": 41, "A": 42, "E": 43, "D": 44, "D1": 48, "D2": 46})
+        self.assertEqual([n["id"] for n in snapshot["nodes"]], ["A", "B", "C", "D", "E", "D1", "D2"])
         payload = json.dumps(snapshot)
         self.assertNotIn("private-address", payload)
-        self.assertNotIn("D2", payload)
+        self.assertNotIn("OLD", payload)
         self.assertEqual(self.frame(snapshot)["counts"]["D1"], 1)
         self.assertNotIn("reason", payload)
+
+    def test_corrections_apply_per_sample_without_changing_raw_history(self):
+        from calibration import initialize
+        initialize(self.db)
+        self.add('N3',self.now-2,50)
+        self.add('N3',self.now-1,60,online=True)
+        self.db.execute('INSERT INTO calibration_profiles VALUES(?,?,?,?,?)',('profile','run',int((self.now-1.5)*1000),None,json.dumps({'N3':3})))
+        self.db.commit()
+        snapshot=self.builder.build(self.now)
+        self.assertAlmostEqual(self.frame(snapshot)['sound']['A'],10*math.log10((10**5+10**6.3)/2),places=3)
+        self.assertEqual(snapshot['latest']['sound']['A'],63)
+        self.assertEqual([r[0] for r in self.db.execute('SELECT laeq FROM readings ORDER BY ts_ms')],[50,60])
 
     def test_equal_one_second_readings_use_sound_energy(self):
         self.add("N3", self.now - 2, 50)

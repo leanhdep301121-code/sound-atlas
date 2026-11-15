@@ -202,7 +202,25 @@ class RemoteControlTests(unittest.TestCase):
         empty=next(n for n in telemetry['nodes'] if n['node']=='N1')
         self.assertIsNone(empty['laeq'])
         self.assertEqual(empty['history'],[])
-        self.assertEqual(len(telemetry['nodes']),6)
+        self.assertEqual(len(telemetry['nodes']),7)
+
+    def test_corrected_export_keeps_original_and_versions_columns(self):
+        import csv,io
+        start=self.add_rows(node='D2',levels=(50,60,70))
+        self.receiver.conn.execute('INSERT INTO calibration_profiles VALUES(?,?,?,?,?)',('profile-test','run-test',start+1000,None,json.dumps({'D2':3})))
+        self.receiver.conn.commit()
+        result=self.worker.export_page({'start':start-1,'end':start+10000,'nodes':['D2'],'clean':True,'corrected':True,'limit':100})
+        rows=list(csv.DictReader(io.StringIO(result['header']+'\n'+result['csv'])))
+        self.assertEqual([float(r['laeq']) for r in rows],[50,60,70])
+        self.assertEqual([float(r['laeq_corrected']) for r in rows],[50,63,73])
+        self.assertEqual(rows[0]['calibration_id'],'')
+        self.assertEqual(rows[1]['calibration_id'],'profile-test')
+        raw=self.worker.export_page({'start':start-1,'end':start+10000,'nodes':['D2'],'clean':False,'limit':100})
+        self.assertNotIn('laeq_corrected',raw['header'])
+        point=next(n for n in self.worker.live_telemetry(self.now)['nodes'] if n['node']=='D2')
+        self.assertEqual(point['laeq'],73)
+        self.assertEqual(point['rawLaeq'],70)
+        self.assertEqual(point['correctionDb'],3)
 
     def test_d1_readiness_and_export_use_acoustic_records(self):
         start=self.add_rows(node='D1')

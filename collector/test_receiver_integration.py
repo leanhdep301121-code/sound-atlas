@@ -57,7 +57,7 @@ class ReceiverIntegration(unittest.TestCase):
                 for page in [receiver.status_page(),receiver.control_page({}),receiver.manage_page()]:
                     self.assertIn('/static/collector.css',page)
                     self.assertIn('声场',page)
-                self.assertEqual(receiver.EXPECTED_NODES,['N1','N2','N3','N4','N5','D1'])
+                self.assertEqual(receiver.EXPECTED_NODES,['N1','N2','N3','N4','N5','D1','D2'])
                 payload['node']='D1'
                 handler.read_body=lambda:json.dumps(payload).encode()
                 handler.handle_upload()

@@ -16,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from calibration import profiles, corrected
 from pathlib import Path
 
 
@@ -31,6 +32,7 @@ NODE_MAP = {
     "N5": ("D", "公桌 A"),
     "N4": ("E", "公桌 B"),
     "D1": ("D1", "工位 D1"),
+    "D2": ("D2", "宿舍 D2"),
 }
 
 
@@ -76,6 +78,7 @@ class SnapshotBuilder:
         self._last_rebuild = 0.0
         self._buckets = {}
         self._pending = []
+        self._profiles = []
 
     def _connect(self):
         if self._conn is None:
@@ -101,6 +104,9 @@ class SnapshotBuilder:
         return any(start <= stamp < end for start, end in exclusions.get(node, ()))
 
     def _add(self, node, stamp, level):
+        level = corrected(self._profiles, node, stamp, level)
+        if not _valid_level(level):
+            return
         public_id = NODE_MAP[node][0]
         key = (stamp // SLOT_MS, public_id)
         energy, count = self._buckets.get(key, (0.0, 0))
@@ -128,7 +134,8 @@ class SnapshotBuilder:
                 for node, begin, end in exclusion_rows:
                     if node in NODE_MAP:
                         exclusions.setdefault(node, []).append((int(begin), int(end)))
-                scope = (lower, start_ms, end_ms, version, tuple(exclusion_rows))
+                self._profiles=profiles(db)
+                scope = (lower, start_ms, end_ms, version, tuple(exclusion_rows), json.dumps(self._profiles,sort_keys=True))
                 row_count = db.execute("SELECT COUNT(*) FROM readings").fetchone()[0]
                 last_rowid = db.execute("SELECT COALESCE(MAX(rowid),0) FROM readings").fetchone()[0]
                 # With INSERT OR IGNORE, new committed rows advance rowid one by one.
@@ -200,7 +207,10 @@ class SnapshotBuilder:
                         )
                         for stamp, value in candidates:
                             if _valid_level(value) and not self._excluded(raw_id, stamp, exclusions):
-                                live_values[public_id] = round(value, 3)
+                                adjusted=corrected(self._profiles,raw_id,stamp,value)
+                                if not _valid_level(adjusted):
+                                    continue
+                                live_values[public_id] = round(adjusted, 3)
                                 live_stamps.append(stamp)
                                 break
                     db.execute("COMMIT")
@@ -235,6 +245,7 @@ class SnapshotBuilder:
                 "generatedAt": iso_time(now),
                 "plan": {"state": plan_status(start_ms, end_ms, now_ms), "startMs": start_ms, "endMs": end_ms},
                 "nodes": nodes,
+                "correctionApplied": bool(self._profiles),
                 "days": [days[label] for label in sorted(days)],
                 "latest": {
                     "timestamp": iso_time(max(live_stamps) / 1000) if live_stamps else None,

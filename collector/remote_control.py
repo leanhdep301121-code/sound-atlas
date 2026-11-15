@@ -22,10 +22,11 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+from calibration import Calibration, profiles, correction, corrected
 from live_bridge import load_config
 
-ALLOWED_ACTIONS = frozenset({"overview", "series", "count", "suspects", "plan", "exclude", "unexclude", "export", "purge"})
-WRITE_ACTIONS = frozenset({"plan", "exclude", "unexclude", "purge"})
+ALLOWED_ACTIONS = frozenset({"overview", "series", "count", "suspects", "plan", "exclude", "unexclude", "export", "purge", "calibration"})
+WRITE_ACTIONS = frozenset({"plan", "exclude", "unexclude", "purge", "calibration"})
 MAX_RESULT_BYTES = 180_000
 MAX_CSV_BYTES = 90_000
 RECEIPT_TTL_SECONDS = 7 * 24 * 60 * 60
@@ -116,6 +117,7 @@ class RemoteControl:
         self._last_error = None
         self._failures = 0
         self._active_until = 0.0
+        self.calibration = Calibration(receiver, clock=clock)
         self._state_cache = None
         self._state_cache_time = 0
         self._closed = False
@@ -152,6 +154,7 @@ class RemoteControl:
         start_ms = now_ms - 300_000
         result = []
         with receiver.db_lock:
+            calibration_profiles=profiles(receiver.conn)
             for node in receiver.EXPECTED_NODES:
                 rows = receiver.conn.execute(
                     "SELECT r.ts_ms,r.laeq,r.lafmax FROM readings r "
@@ -162,6 +165,8 @@ class RemoteControl:
                     "ORDER BY r.ts_ms DESC LIMIT 600", (node, start_ms, now_ms)
                 ).fetchall()
                 rows = [row for row in reversed(rows) if math.isfinite(row[1])]
+                raw_latest=rows[-1][1] if rows else None
+                rows=[(stamp,corrected(calibration_profiles,node,stamp,level),peak) for stamp,level,peak in rows]
                 buckets = {}
                 for stamp, level, peak in rows:
                     slot = stamp // 5000
@@ -172,7 +177,8 @@ class RemoteControl:
                     "timestamp": latest[0] if latest else None,
                     "laeq": round(latest[1], 2) if latest else None,
                     "lafmax": round(latest[2], 2) if latest and isinstance(latest[2], (int, float)) and math.isfinite(latest[2]) and 0 < latest[2] <= 160 else None,
-                    "samples": len(rows),
+                    "samples": len(rows), "rawLaeq":raw_latest,
+                    "correctionDb":correction(calibration_profiles,node,latest[0])[0] if latest else 0,
                     "windowLeq": round(10 * math.log10(sum(10 ** (r[1]/10) for r in rows)/len(rows)), 2) if rows else None,
                     "history": [[slot * 5000, round(10 * math.log10(energy/count), 2)] for slot, (energy, count) in sorted(buckets.items())]})
         return {"generatedAt": _iso(now), "windowSeconds": 300, "bucketSeconds": 5,
@@ -200,7 +206,7 @@ class RemoteControl:
         version, start, end = receiver.get_plan()
         bridge = getattr(receiver, "SYNC_BRIDGE", None)
         state = {"generatedAt": _iso(now), "overview": safe_overview, "readiness": readiness,
-                 "telemetry": self.live_telemetry(now),
+                 "telemetry": self.live_telemetry(now), "calibration": self.calibration.state(),
                  "plan": {"version": version, "startMs": start, "endMs": end, "state": receiver.plan_state(now * 1000)[0]},
                  "bridge": bridge.status() if bridge else {"state": "disabled", "message": "本机摘要同步尚未启动。"}}
         if len(_json(state).encode("utf-8")) > 150_000:
@@ -240,6 +246,18 @@ class RemoteControl:
 
     def _execute(self, action, payload, expires=None):
         receiver = self.receiver
+        if action == "calibration":
+            with receiver.db_lock:
+                self._check_deadline(expires)
+                op=payload.get("operation")
+                if op=="start": result=self.calibration.start(payload.get("planVersion"))
+                elif op=="analyze": result=self.calibration.analyze(payload.get("runId"))
+                elif op=="apply": result=self.calibration.apply(payload.get("runId"),payload.get("fingerprint"))
+                elif op=="disable": result=self.calibration.disable()
+                elif op in ("restore","cancel"): result=self.calibration.restore(payload.get("runId"),cancel=op=="cancel")
+                else: raise RemoteError("不支持此校准操作。")
+                self._changed()
+                return result
         if action == "overview":
             return self.management_state(force=True)["overview"]
         if action in ("series", "count", "suspects"):
@@ -331,13 +349,16 @@ class RemoteControl:
         nodes = sorted(self._nodes(payload.get("nodes") or receiver.all_nodes()))
         start, requested_end = self._range(payload)
         clean = payload.get("clean", True) not in (False, 0, "0")
+        use_correction = payload.get("corrected") is True
+        if use_correction and not clean: raise RemoteError("修正导出仅用于可用记录，原始导出保持原样。")
         limit = max(1, min(1000, int(payload.get("limit", 1000))))
         cursor = payload.get("cursor")
         if cursor is not None and not isinstance(cursor, dict):
             raise RemoteError("导出游标有误，请重新导出。")
         with receiver.db_lock:
             exclusion_rows = receiver.conn.execute("SELECT node,start_ms,end_ms FROM exclusions ORDER BY node,start_ms,end_ms").fetchall()
-            signature = hashlib.sha256(_json([nodes, start, requested_end, clean, exclusion_rows]).encode()).hexdigest()
+            calibration_profiles=profiles(receiver.conn) if use_correction else []
+            signature = hashlib.sha256(_json([nodes, start, requested_end, clean, exclusion_rows, calibration_profiles]).encode()).hexdigest()
             if cursor:
                 if cursor.get("signature") != signature:
                     raise RemoteError("筛选或排除状态已变化，请重新导出。")
@@ -367,6 +388,9 @@ class RemoteControl:
                     last_node, last_ts = node, stamp
                     continue
                 cells = [node, receiver.local_time(stamp / 1000), stamp] + ["" if v is None else f"{v:.2f}" for v in row[2:-1]]
+                if use_correction:
+                    offset,profile_id=correction(calibration_profiles,node,stamp)
+                    cells += [f"{row[2]+offset:.2f}",f"{offset:.3f}",profile_id]
                 if not clean:
                     cells += [int(invalid), int(excluded)]
                 line = io.StringIO(); csv.writer(line, lineterminator="\n").writerow(cells)
@@ -379,8 +403,8 @@ class RemoteControl:
             more_args = [*nodes, start, end, max_rowid, last_node, last_node, last_ts]
             has_more = bool(receiver.conn.execute(f"SELECT 1 FROM readings WHERE {where} LIMIT 1", more_args).fetchone())
         next_cursor = {"node": last_node, "ts": last_ts, "maxRowid": max_rowid, "end": end, "signature": signature} if has_more else None
-        header = "node,time_beijing,ts_ms," + ",".join(receiver.COLUMNS) + ("" if clean else ",invalid,excluded")
-        return {"header": header, "csv": "".join(output), "filename": "sound-atlas-" + ("clean" if clean else "raw") + ".csv",
+        header = "node,time_beijing,ts_ms," + ",".join(receiver.COLUMNS) + (",laeq_corrected,correction_db,calibration_id" if use_correction else "") + ("" if clean else ",invalid,excluded")
+        return {"header": header, "csv": "".join(output), "filename": "sound-atlas-" + ("corrected" if use_correction else "clean" if clean else "raw") + ".csv",
                 "nextCursor": next_cursor, "done": not has_more}
 
     def execute_command(self, command):

@@ -43,7 +43,7 @@ test('cloud only publishes bounded acoustic telemetry with no private fields',()
   const source=state();source.telemetry.nodes[0].ip='private-host';source.telemetry.nodes[0].token='private-key';
   source.telemetry.nodes[0].samples=2;source.telemetry.nodes[0].windowLeq=51.5;
   const result=sanitizeState(source,now);
-  assert.equal(result.telemetry.nodes.length,6);
+  assert.equal(result.telemetry.nodes.length,7);
   const d1=result.telemetry.nodes.find(n=>n.node==='D1');
   assert.equal(d1.laeq,52.3);assert.equal(d1.windowLeq,51.5);
   assert.ok(!JSON.stringify(result).includes('private-'));
