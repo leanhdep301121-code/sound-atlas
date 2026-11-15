@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from calibration import profiles, corrected
-from node_locations import CURRENT_LOCATIONS, SWAP_EFFECTIVE_MS, location_at
+from node_locations import CURRENT_LOCATIONS, LOCATION_VERSION, location_at
 from pathlib import Path
 
 
@@ -128,7 +128,7 @@ class SnapshotBuilder:
                     if node in NODE_MAP:
                         exclusions.setdefault(node, []).append((int(begin), int(end)))
                 self._profiles=profiles(db)
-                scope = (lower, start_ms, end_ms, version, SWAP_EFFECTIVE_MS, tuple(exclusion_rows), json.dumps(self._profiles,sort_keys=True))
+                scope = (lower, start_ms, end_ms, version, LOCATION_VERSION, tuple(exclusion_rows), json.dumps(self._profiles,sort_keys=True))
                 row_count = db.execute("SELECT COUNT(*) FROM readings").fetchone()[0]
                 last_rowid = db.execute("SELECT COALESCE(MAX(rowid),0) FROM readings").fetchone()[0]
                 # With INSERT OR IGNORE, new committed rows advance rowid one by one.

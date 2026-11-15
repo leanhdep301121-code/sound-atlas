@@ -13,11 +13,13 @@ test('calibration commands require exact operation, version and report fingerpri
   assert.equal(cmd({operation:'apply',runId:'abcdef123456',fingerprint:'a'.repeat(64)}).mutating,true);
   assert.throws(()=>cmd({operation:'arbitrary'}));
 });
-test('D2 reaches readings and trends but is absent from the spatial heatmap',()=>{
+test('dormitory stays outside the heatmap after the device swap',()=>{
   const context=vm.createContext({Intl,Date,document:{createElement:()=>({})}});
   for(const path of ['data.js','heatmap.js'])vm.runInContext(readFileSync(new URL('../dist/'+path,import.meta.url),'utf8'),context);
   assert.equal(vm.runInContext("OBSERVATION_NODES.some(n=>n.id==='D2')",context),true);
   assert.equal(vm.runInContext("TABLES.some(n=>n.id==='D2')",context),false);
+  assert.equal(vm.runInContext("OBSERVATION_NODES.find(n=>n.kind==='remote').device",context),'N4');
+  assert.equal(vm.runInContext("TABLES.find(n=>n.kind==='personal').device",context),'D2');
   assert.equal(vm.runInContext('heatmapSamples({sound:{A:50,D2:80}}).length',context),1);
   assert.equal(vm.runInContext('createDemo().every(d=>d.frames.every(f=>Number.isFinite(f.sound.D2)))',context),true);
   const now=Date.now(),frames=Array.from({length:48},()=>({sound:{},counts:{}}));frames[0]={sound:{D2:49},counts:{D2:5}};

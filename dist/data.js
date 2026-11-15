@@ -62,8 +62,8 @@ const TABLES = [
   },
   {
     "id": "D1",
-    "device": "N4",
-    "marker": "N4",
+    "device": "D2",
+    "marker": "D2",
     "name": "个人工位",
     "location": "N1 右侧，东墙最南端单人工位，邻近右下休息区",
     "kind": "personal",
@@ -74,7 +74,7 @@ const TABLES = [
   }
 ];
 // Dormitory readings have no coordinates in the second-floor plan.
-const OBSERVATION_NODES = [...TABLES, {id:'D2',device:'D2',marker:'D2',name:'宿舍 D2',location:'宿舍独立测点，不参与二层热力图',kind:'remote'}];
+const OBSERVATION_NODES = [...TABLES, {id:'D2',device:'N4',marker:'N4',name:'宿舍 N4',location:'宿舍独立测点，不参与二层热力图',kind:'remote'}];
 const SLOTS = 48;
 const INITIAL_SLOT = 29;
 const weekday = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];

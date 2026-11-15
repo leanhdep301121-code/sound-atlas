@@ -18,8 +18,8 @@ test('personal workstation retains its CAD footprint after swapping device label
   assert.ok(Math.abs(node.x - (node.cadX - 66000) / 65) < 1e-6);
   assert.ok(Math.abs(node.y - (160000 - node.cadY) / 65) < 1e-6);
   assert.equal(run('TABLES.length'), 6);
-  assert.equal(node.device, 'N4');
-  assert.equal(node.marker, 'N4');
+  assert.equal(node.device, 'D2');
+  assert.equal(node.marker, 'D2');
   assert.equal(run("TABLES.find(node=>node.id==='E').device"), 'D1');
   assert.equal(run('insideHeatmap(TABLES[5].x, TABLES[5].y)'), true);
 });
