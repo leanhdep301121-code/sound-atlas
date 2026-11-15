@@ -22,6 +22,7 @@ let series=null, selection=null, selectedNodes=new Set(TABLES.map(table=>table.n
 let dataLoaded=false, exportController=null, chartDrag=null;
 let confirmResolve=null, confirmRequired='';
 let lastRefreshAt=0, refreshFailed=false, sessionGeneration=0;
+let planMode='continuous',planModeDirty=false;
 let appliedQuery=null, nodeFilterSignature='', countTimer=null, countGeneration=0, exclusionSignature='';
 
 function operation(message, error=false) { $('operation-status').textContent=message; $('operation-status').hidden=!message; $('operation-status').dataset.error=String(error); }
@@ -45,7 +46,7 @@ function setBusy(value) {
   document.querySelectorAll('[data-command]').forEach(button=>button.disabled=value||!state?.connected);
   $('logout').disabled=value;
   document.querySelectorAll('.collector-panel').forEach(panel=>panel.setAttribute('aria-busy',String(value)));
-  syncManageControls();renderCalibration();
+  syncManageControls();renderCalibration();syncPlanControls();
 }
 function requireOnline() { if(!state?.connected)throw new AdminError('采集电脑当前离线，恢复连接后可进行操作。'); }
 async function perform(action,payload,{success='',signal}={}) {
@@ -118,16 +119,17 @@ function renderState() {
   const online=TABLES.filter(table=>connected&&readinessFor(table.node).online).length;
   $('online-count').textContent=online+' / '+TABLES.length;
   $('usable-count').textContent=num((overview.nodes||[]).filter(node=>names[node.node]).reduce((sum,node)=>sum+(node.usable||0),0));
-  $('plan-metric').textContent=planNames[plan.state]||'—';
+  $('plan-metric').textContent=plan.state==='recording'&&!plan.endMs?'持续采集中':planNames[plan.state]||'—';
   $('station-rows').innerHTML=TABLES.map(table=>{
     const info=readinessFor(table.node),summary=(overview.nodes||[]).find(item=>item.node===table.node)||{};
     const isOnline=connected&&info.online;
     const latest=typeof info.lastSeen==='number'?(info.lastSeen<1e12?info.lastSeen*1000:info.lastSeen):Date.parse(info.lastSeen);
     return `<tr><td><div class="station-identity"><span class="station-marker">${table.marker}</span><div><strong>${table.name}</strong><small>${table.node}</small></div></div></td><td>${table.place}</td><td><span class="${isOnline?'station-online':'station-offline'}">${isOnline?'在线':info.lastSeen?'离线':'待连接'}</span><small>${esc(info.message||'尚未连接过')}</small></td><td>${num(summary.usable)} 条可用<small>共 ${num(summary.count)} 条 · 排除 ${num(summary.excluded)} 条</small></td><td>${formatBeijing(latest,true)}</td></tr>`;
   }).join('');
-  $('plan-state').textContent=planNames[plan.state]||'—';
+  $('plan-state').textContent=plan.state==='recording'&&!plan.endMs?'持续采集中':planNames[plan.state]||'—';
+  if(!planModeDirty)setPlanMode(plan.startMs&&plan.endMs&&['waiting','recording'].includes(plan.state)?'scheduled':'continuous');
   $('current-start').textContent=formatBeijing(plan.startMs,true);
-  $('current-end').textContent=plan.startMs?(plan.endMs?formatBeijing(plan.endMs,true):'手动停止'):'—';
+  $('current-end').textContent=plan.startMs?(plan.endMs?formatBeijing(plan.endMs,true):'持续采集 · 手动停止'):'—';
   if(!planDirty){$('plan-start').value=beijingInput(plan.startMs||Math.ceil((Date.now()+120000)/60000)*60000);$('plan-end').value=beijingInput(plan.endMs);}
   $('readiness-list').innerHTML=TABLES.map(table=>{
     const row=readinessFor(table.node),ready=connected&&row.online&&row.synced&&row.mic&&(row.planSynced??row.planReceived);
@@ -168,13 +170,24 @@ document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener(
   for(const tab of ['overview','plan','manage','calibration'])$('panel-'+tab).hidden=tab!==currentTab;
   if(currentTab==='manage'){drawChart();if(!dataLoaded&&state?.connected)loadSeries();}
 }));
+function setPlanMode(mode){planMode=mode;$('continuous-plan').hidden=mode!=='continuous';$('scheduled-plan').hidden=mode!=='scheduled';document.querySelectorAll('[data-plan-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.planMode===mode)));}
+function syncPlanControls(){
+  const plan=currentPlan(),already=plan.state==='recording'&&!plan.endMs;
+  const run=state?.calibration?.run,calibrating=run&&!run.cancelled&&plan.version===run.planVersion&&Date.now()<run.endMs;
+  $('continuous-start').disabled=busy||!state?.connected||already||Boolean(calibrating);
+  $('continuous-start').textContent=already?'正在持续采集':plan.state==='recording'?'切换为持续采集':'启动持续采集';
+  $('continuous-help').textContent=calibrating?'五分钟校准尚未结束，请先完成或取消校准。':already?'持续采集已生效，关闭页面也会继续记录。':'请确认设备已收到计划。板子必须正常供电并完成对时；离线期间按已保存的计划执行。';
+  document.querySelector('[data-plan-action="stop"]').disabled=busy||!state?.connected||plan.state!=='recording';
+  document.querySelector('[data-plan-action="cancel"]').disabled=busy||!state?.connected||!['waiting','recording'].includes(plan.state);
+}
+document.querySelectorAll('[data-plan-mode]').forEach(button=>button.addEventListener('click',()=>{planModeDirty=true;setPlanMode(button.dataset.planMode);}));
 $('plan-start').addEventListener('input',()=>{planDirty=true;});$('plan-end').addEventListener('input',()=>{planDirty=true;});
 async function sendPlan(payload,title,description) {
   try{
     requireOnline();if(busy)return;
     if(!await confirmOperation(title,description+'\n\n将发送到采集电脑，收到执行确认后生效。'))return;
     const result=await perform('plan',{...payload,planVersion:currentPlan().version},{success:'采集端已确认计划变更。'});
-    planDirty=false;await refreshState(true);
+    planDirty=false;planModeDirty=false;await refreshState(true);
     if(result?.message)operation(result.message);
   }catch(error){handleError(error);}
 }
@@ -186,7 +199,7 @@ $('plan-form').addEventListener('submit',event=>{
 });
 document.querySelectorAll('[data-plan-action]').forEach(button=>button.addEventListener('click',()=>{
   const action=button.dataset.planAction;
-  const copy={quick:['连续采集 7 天','所有测点将在约两分钟后的整分钟统一开始，持续 7 天。'],start_now:['统一开始采集','所有测点将在约 30 秒后统一开始，不设结束时间。'],stop:['统一停止采集','采集端将安排约 15 秒后的统一结束时间，保留已有记录。'],cancel:['取消采集计划','未开始的计划会取消；正在执行的计划将安排统一停止。已有记录保留。']}[action];
+  const copy={continuous:['启用持续采集？','无需填写起止时间。未在记录时约30–40秒后统一开始；正在记录时保留原开始时间、取消结束时间。之后一直采集，直到手动停止。已有数据保留。'],quick:['连续采集 7 天','所有测点将在约两分钟后的整分钟统一开始，持续 7 天。'],start_now:['统一开始采集','所有测点将在约 30 秒后统一开始，不设结束时间。'],stop:['统一停止采集','采集端将安排约 15 秒后的统一结束时间，保留已有记录。'],cancel:['取消采集计划','未开始的计划会取消；正在执行的计划将安排统一停止。已有记录保留。']}[action];
   sendPlan({action,...(action==='quick'?{days:7}:{})},...copy);
 }));
 

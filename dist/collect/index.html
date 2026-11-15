@@ -35,8 +35,13 @@
     <section id="panel-plan" class="collector-panel" aria-labelledby="plan-heading" hidden>
       <div class="section-title"><div><h2 id="plan-heading">让七个测点同时开始。</h2><p>所有采集时间均按北京时间填写与执行。</p></div><span class="status-tag" id="plan-state">—</span></div>
       <div class="plan-summary"><div><span>开始</span><strong id="current-start">—</strong></div><span class="plan-arrow" aria-hidden="true">→</span><div><span>结束</span><strong id="current-end">—</strong></div></div>
+      <div class="plan-mode-options" role="group" aria-label="选择采集方式"><button type="button" data-plan-mode="continuous" aria-pressed="true"><strong>持续采集</strong><span>不填时间，直到手动停止</span></button><button type="button" data-plan-mode="scheduled" aria-pressed="false"><strong>定时采集</strong><span>指定开始或结束时间</span></button></div>
+      <section id="continuous-plan" class="continuous-plan" aria-label="持续采集设置"><h3>启动一次，持续记录。</h3><p>无需填写时间。未在采集时，会预留约 30–40 秒同步后统一开始；正在定时采集时，可取消结束时间并继续记录。</p><button class="button button-primary" type="button" id="continuous-start" data-plan-action="continuous" data-command>启动持续采集</button><p id="continuous-help" class="field-note">持续采集仍需要板子正常供电、时间有效，并收到采集指令。</p></section>
+      <section id="scheduled-plan" aria-label="定时采集设置" hidden>
       <form id="plan-form" class="plan-form"><div><label for="plan-start">开始时间 · 北京时间</label><input id="plan-start" type="datetime-local" step="1" required></div><div><label for="plan-end">结束时间 · 北京时间</label><input id="plan-end" type="datetime-local" step="1"><p class="field-note">留空时持续记录，直到统一停止。</p></div><div class="plan-submit"><button class="button button-primary" type="submit" data-command>保存采集计划</button></div></form>
-      <div class="plan-shortcuts"><button class="button button-outline" type="button" data-plan-action="quick" data-command>整分开始，连续 7 天</button><button class="button button-outline" type="button" data-plan-action="start_now" data-command>约 30 秒后开始</button><button class="button button-outline" type="button" data-plan-action="stop" data-command>统一停止</button><button class="text-button" type="button" data-plan-action="cancel" data-command>取消计划</button></div>
+      <div class="plan-shortcuts"><button class="button button-outline" type="button" data-plan-action="quick" data-command>整分开始，连续 7 天</button></div></section>
+      <div class="plan-stop-actions"><button class="button button-outline" type="button" data-plan-action="stop" data-command>统一停止采集</button><button class="text-button" type="button" data-plan-action="cancel" data-command>取消当前计划</button></div>
+      <p class="plan-explanation">关闭网页不会停止采集。没有生效的采集指令时，设备只上报状态，不新增声级记录；此前缓存的记录仍可补传。断网设备要在重新连接、收到停止指令后才会停止。</p>
       <div class="readiness-area"><h3>设备准备情况</h3><div class="readiness-list" id="readiness-list"></div><p class="field-note">开始前请确认麦克风、对时和计划接收正常。操作会等待采集端确认，不会仅在网页上显示为已完成。</p></div>
     </section>
     <section id="panel-calibration" class="collector-panel" aria-labelledby="calibration-heading" hidden>

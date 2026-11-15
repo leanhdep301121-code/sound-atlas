@@ -44,6 +44,27 @@ class RemoteControlTests(unittest.TestCase):
             self.receiver.conn.commit()
         return start
 
+    def test_continuous_plan_starts_without_dates_and_is_repeat_safe(self):
+        before=int(time.time()*1000)
+        result=self.worker.execute_command(self.command('plan',{'action':'continuous','planVersion':0},identifier='continuous-first'))
+        self.assertEqual(result['status'],'done')
+        version,start,end=self.receiver.get_plan()
+        self.assertEqual(end,0)
+        self.assertGreaterEqual(start,before+29000)
+        self.assertLessEqual(start,before+41000)
+        self.receiver.set_plan(before-60000,before+60000)
+        version,original_start,_=self.receiver.get_plan()
+        result=self.worker.execute_command(self.command('plan',{'action':'continuous','planVersion':version},identifier='continuous-running'))
+        self.assertEqual(result['status'],'done')
+        current=self.receiver.get_plan()
+        self.assertEqual(current[1:],(original_start,0))
+        repeated=self.worker.execute_command(self.command('plan',{'action':'continuous','planVersion':current[0]},identifier='continuous-repeat'))
+        self.assertEqual(repeated['status'],'done')
+        self.assertEqual(self.receiver.get_plan(),current)
+        stopped=self.worker.execute_command(self.command('plan',{'action':'stop','planVersion':current[0]},identifier='continuous-stop'))
+        self.assertEqual(stopped['status'],'done')
+        self.assertGreater(self.receiver.get_plan()[2],int(time.time()*1000))
+
     def test_read_state_contains_no_ip_and_correct_mapping(self):
         self.receiver.conn.execute('INSERT INTO nodes(node,last_seen,ip,cfg_ver,mic,synced) VALUES(?,?,?,?,?,?)',('N1',time.time(),'192.168.1.99',0,0,1))
         self.receiver.conn.commit()

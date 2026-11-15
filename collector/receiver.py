@@ -1034,8 +1034,8 @@ def control_page(params):
 <section class="card">
 <h2>设定时间<small>北京时间</small></h2>
 <div class="row">
-<form method="post" action="/plan"><input type="hidden" name="action" value="start_now"><input type="hidden" name="back" value="/control">
-<button class="pill" type="submit">立即开始</button></form>
+<form method="post" action="/plan"><input type="hidden" name="action" value="continuous"><input type="hidden" name="back" value="/control">
+<button class="pill" type="submit">持续采集（不设结束时间）</button></form>
 <form method="post" action="/plan"><input type="hidden" name="action" value="quick"><input type="hidden" name="days" value="7">
 <button class="pill" type="submit">{hm(q2 / 1000)} 开始 · 持续 7 天</button></form>
 </div>
@@ -1065,7 +1065,12 @@ def handle_plan_form(form):
     now_ms = time.time() * 1000
     ver, s, e = get_plan()
     code, _ = plan_state(now_ms)
-    if action == "start_now":
+    if action == "continuous":
+        if code == "recording" and e == 0:
+            return "已经处于持续采集，直到手动停止。"
+        start = s if code == "recording" else -(-int(now_ms + MIN_LEAD_S * 1000) // 10000) * 10000
+        end = 0
+    elif action == "start_now":
         if code == "recording":
             raise ValueError("已经在记录了")
         start = -(-int(now_ms + MIN_LEAD_S * 1000) // 10000) * 10000     # 约 30 秒后，取整到 10 秒
@@ -1102,7 +1107,7 @@ def handle_plan_form(form):
     ver, s, e = set_plan(start, end)
     if s == 0:
         text = "已取消，节点不会开始记录"
-    elif action == "start_now":
+    elif action in ("start_now", "continuous"):
         text = f"好的，所有节点将在 {local_time(s / 1000)} 同时开始记录（不设结束）"
     elif action in ("stop", "cancel"):
         text = f"好的，所有节点将在 {local_time(e / 1000)} 同时停止记录（本次共 {fmt_dur((e - s) / 1000)}）"

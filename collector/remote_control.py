@@ -280,7 +280,7 @@ class RemoteControl:
             return result
         if action == "plan":
             self._check_plan_version(payload)
-            if payload.get("action") not in {"start_now", "quick", "set", "stop", "cancel"}:
+            if payload.get("action") not in {"continuous", "start_now", "quick", "set", "stop", "cancel"}:
                 raise RemoteError("未知的采集计划操作。")
             form = {key: str(payload[key]) for key in ("action", "start", "end", "days") if payload.get(key) is not None}
             if form.get("action") == "quick" and int(form.get("days", "0") or 0) not in (0, 1, 7):
@@ -288,6 +288,9 @@ class RemoteControl:
             with receiver.db_lock:
                 self._check_deadline(expires)
                 self._check_plan_version(payload)
+                run=self.calibration.run()
+                if payload.get("action")=="continuous" and run and not run['cancelled'] and receiver.get_plan()[0]==run['planVersion'] and self._clock()*1000 < run['endMs']:
+                    raise RemoteError("当前正在进行五分钟校准，请先完成或取消校准。")
                 message = receiver.handle_plan_form(form)
             self._changed()
             version, start, end = receiver.get_plan()

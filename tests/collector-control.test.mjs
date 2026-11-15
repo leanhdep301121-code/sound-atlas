@@ -68,3 +68,10 @@ test('previously queued overview with cjson empty-array payload remains compatib
   const result=await store.poll({action:'poll',state:{overview:{},plan:{}},results:[]});
   assert.deepEqual(result.command.payload,{});
 });
+
+test('continuous collection needs no date fields and remains version checked',()=>{
+  const command=normalizeCommand({action:'plan',requestId,payload:{action:'continuous',planVersion:4}});
+  assert.deepEqual(command.payload,{action:'continuous',planVersion:4});
+  assert.equal(command.mutating,true);
+  assert.throws(()=>normalizeCommand({action:'plan',requestId,payload:{action:'continuous',planVersion:-1}}));
+});
