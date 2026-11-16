@@ -11,6 +11,8 @@ let playback = null;
 let timelinePosition = null;
 let miniChartKey = null;
 let trendFocused = false;
+let summaryKey = null;
+let summarySignature = null;
 const trendButtons = new Map();
 const trendColor = id => colors('trend-' + OBSERVATION_NODES.findIndex(node => node.id === id));
 const timelineRender = SoundAtlasMotion.createFrameQueue(() => render());
@@ -221,6 +223,7 @@ function render() {
   updateSpatialView(frame, selected.id);
   drawCharts(date.frames);
   drawMiniCharts(date.frames, selected);
+  renderDailySummary(date);
 }
 
 function drawMiniCharts(frames, selected) {
@@ -328,6 +331,91 @@ function drawCharts(frames) {
     button.classList.toggle('is-muted', trendFocused && id !== state.table);
   }
   trendReadout(); drawChart(chart, series);
+}
+
+function renderDailySummary(date) {
+  if (summaryKey?.frames === date.frames && summaryKey.mode === state.mode && summaryKey.label === date.label) return;
+  summaryKey = {frames:date.frames, mode:state.mode, label:date.label};
+  const demo = state.mode === 'demo';
+  const result = SoundAtlasSummary.analyze(date.frames, OBSERVATION_NODES, {demo});
+  const signature = JSON.stringify([date.label, state.mode, result]);
+  if (signature === summarySignature) return;
+  summarySignature = signature;
+  const text = (tag, value, className) => { const element = document.createElement(tag); element.textContent = value; if(className) element.className = className; return element; };
+  const device = node => node.device || node.marker;
+  const duration = seconds => {
+    if (seconds == null) return '样本时长未知';
+    const hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds % 3600 / 60), rest = seconds % 60;
+    return (hours ? hours + '小时' : '') + (minutes ? minutes + '分' : '') + (rest || !hours && !minutes ? rest + '秒' : '');
+  };
+  const range = interval => clockLabel(interval.start) + '–' + clockLabel(interval.end);
+  const jump = (slot, id, label) => {
+    const button = text('button', label); button.type = 'button';
+    button.addEventListener('click', () => {
+      stopFollowingLive(); setPlayback(false); timelineRender.cancel(); timelinePosition = null;
+      state.slot = slot; selectNode(id); announce();
+      byId('observatory').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
+      byId('map-viewport').focus({preventScroll:true});
+    });
+    return button;
+  };
+  byId('summary-date').textContent = date.label;
+  byId('summary-source').textContent = demo ? '演示数据 · 非现场观测' : state.mode === 'csv' ? '本地 CSV · 当前载入范围' : '实测摘要 · 当前载入范围';
+  byId('summary-common').textContent = demo ? result.common.length + ' 个共同演示分钟，仅作界面预览。' : result.common.length + ' 个共同完整分钟；点击测点查看最近共同分钟。';
+  if (result.ranking.length) {
+    const first = result.ranking[0], last = result.ranking[result.ranking.length-1];
+    const tied = result.ranking.filter(row => Math.abs(row.value-first.value)<.05).map(row=>device(row.node));
+    byId('summary-insight').textContent = (demo ? '演示结果：' : '') + '在 ' + result.common.length + ' 个共同' + (demo?'':'完整') + '分钟内，' + tied.join('、') + ' 的等效声级最低（' + first.value.toFixed(1) + ' dB(A)），与最高测点相差 ' + (last.value-first.value).toFixed(1) + ' dB。';
+  } else {
+    byId('summary-insight').textContent = result.scope ? '暂不做声级排名：还没有六个测点共同完整记录的分钟。可先查看下方各点的记录覆盖情况。' : '这一天暂未载入有效记录，声级排行和较吵时段保持空白。';
+  }
+  const ranking = byId('summary-ranking'); ranking.replaceChildren();
+  result.ranking.forEach((row, index) => {
+    const li = document.createElement('li');
+    const button = jump(result.common[result.common.length-1], row.node.id, '');
+    button.setAttribute('aria-label','查看 '+device(row.node)+' 的共同观测时段');
+    button.append(text('span',String(index+1),'summary-rank'),text('strong',device(row.node)),text('span',row.node.kind==='personal'?'个人工位':'公桌','summary-node-kind'),text('span',row.value.toFixed(1),'summary-level'),text('small','dB(A)'));
+    li.append(button); ranking.append(li);
+  });
+  if(!result.ranking.length)ranking.append(text('li','等待共同完整分钟，缺测不会被算作低声级。','summary-empty'));
+  const peaks=byId('summary-peaks');peaks.replaceChildren();
+  result.peaks.forEach(row=>{
+    const li=document.createElement('li'),button=jump(row.slot,row.node.id,'');
+    button.setAttribute('aria-label','回放 '+clockLabel(row.slot)+' '+device(row.node));
+    button.append(text('strong',clockLabel(row.slot)+'–'+clockLabel(row.slot+1)),text('span',device(row.node),'summary-peak-node'),text('span',row.value.toFixed(1),'summary-level'),text('small','dB(A)'),text('span','↗','summary-jump'));
+    li.append(button);peaks.append(li);
+  });
+  if(!result.peaks.length)peaks.append(text('li','暂无完整一分钟记录，暂不列出较吵时段。','summary-empty'));
+  byId('summary-window').textContent = result.scope ? '记录窗口 '+range(result.scope) : '暂无观测窗口';
+  const coverage=byId('summary-coverage');
+  const expandedNodes = new Set([...coverage.querySelectorAll('details[open]')].map(details => details.dataset.node));
+  coverage.replaceChildren();
+  result.coverage.forEach(row=>{
+    const container=document.createElement('div');container.className='coverage-row';
+    const identity=document.createElement('div');identity.className='coverage-identity';
+    identity.append(text('strong',device(row.node)),text('small',demo?'演示分钟':row.sampleSeconds==null?(row.minutes?'有记录 '+row.minutes+' 分钟 · 样本数未知':'尚无记录'):'有效样本 '+duration(row.sampleSeconds)));
+    const plot=document.createElement('div');plot.className='coverage-plot';
+    const bar=document.createElement('div');bar.className='coverage-track';bar.setAttribute('role','img');
+    bar.setAttribute('aria-label',device(row.node)+'：'+row.completeMinutes+' 个完整分钟，'+row.partialMinutes+' 个不完整分钟，窗口内 '+row.gaps.length+' 段无记录');
+    const addRange=(interval,className)=>{const span=document.createElement('span');span.className=className;span.style.left=(interval.start/1440*100)+'%';span.style.width=((interval.end-interval.start)/1440*100)+'%';span.title=range(interval);bar.append(span);};
+    if(result.scope)addRange(result.scope,'coverage-gap');
+    row.fullRuns.forEach(interval=>addRange(interval,'coverage-full'));
+    row.partialRuns.forEach(interval=>addRange(interval,'coverage-partial'));
+    const ticks=document.createElement('div');ticks.className='coverage-ticks';['00:00','06:00','12:00','18:00','24:00'].forEach(t=>ticks.append(text('span',t)));
+    plot.append(bar,ticks);
+    const stats=document.createElement('div');stats.className='coverage-stats';
+    stats.append(text('strong',row.coverage==null?'—':(row.coverage*100).toFixed(1)+'%'),text('small','分钟覆盖率'));
+    container.append(identity,plot,stats);
+    if(row.gaps.length || row.partialMinutes){
+      const details=document.createElement('details');details.className='coverage-details';details.dataset.node=row.node.id;details.open=expandedNodes.has(row.node.id);
+      details.append(text('summary','窗口内 '+row.gaps.length+' 段无记录 · '+row.partialMinutes+' 个不完整分钟'));
+      const list=document.createElement('div');list.className='coverage-gap-list';
+      row.gaps.forEach(interval=>list.append(jump(interval.start,row.node.id,range(interval)+' 无记录')));
+      row.partialRuns.forEach(interval=>list.append(jump(interval.start,row.node.id,range(interval)+' 不完整')));
+      details.append(list);container.append(details);
+    }
+    coverage.append(container);
+  });
 }
 
 function setPlayback(playing) {

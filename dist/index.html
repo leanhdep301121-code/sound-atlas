@@ -9,16 +9,16 @@ try {
   document.documentElement.dataset.theme = localStorage.getItem('sound-atlas-theme') === 'dark' ? 'dark' : 'light';
 } catch { document.documentElement.dataset.theme = 'light'; }
 </script>
-<link rel="stylesheet" href="styles.css?v=trend-comparison">
+<link rel="stylesheet" href="styles.css?v=daily-summary">
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
 <link rel="modulepreload" href="spatial-view.js?v=mesh-binary">
-<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=minute-playback" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js" defer></script><script src="trends.js" defer></script><script src="app.js?v=trend-comparison" defer></script>
+<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=minute-playback" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js" defer></script><script src="trends.js" defer></script><script src="summary.js" defer></script><script src="app.js?v=daily-summary" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#observatory">跳到声环境图</a>
 <header class="topbar" id="top">
 <a class="brand" href="#top" aria-label="声场首页"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>声场<span class="wordmark">SOUND ATLAS</span></span></a>
-<nav aria-label="站点导航"><a href="#observatory" class="nav-active">声环境图</a><a href="#trends">声级变化</a><a href="#study">研究方法</a><a href="collect/">数据采集</a></nav>
+<nav aria-label="站点导航"><a href="#observatory" class="nav-active">声环境图</a><a href="#trends">声级变化</a><a href="#study">观测摘要</a><a href="collect/">数据采集</a></nav>
 <div class="nav-actions"><button type="button" class="theme-button" id="theme-toggle" aria-label="切换明暗主题">明暗</button><button type="button" class="button button-primary" id="open-data">数据来源 <span aria-hidden="true">↗</span></button></div>
 </header>
 <main>
@@ -103,7 +103,23 @@ try {
 </div>
 <div class="comparison"><div class="comparison-heading"><h3 id="comparison-heading">同一时段的公桌</h3><p id="inspection-foot"></p></div><div id="comparison-list" class="comparison-list"></div></div><p class="sr-only" id="change-announcement" aria-live="polite"></p>
 </section>
-<section class="study shell" id="study" aria-labelledby="study-heading"><figure class="study-photo"><img src="assets/studio.webp" width="1200" height="800" alt="开放建筑工作室的概念场景，长桌沿窗展开" loading="lazy"><figcaption>开放工位场景示意</figcaption></figure><div class="study-copy"><h2 id="study-heading">给讨论留位置，<br>也给专注留空间。</h2><p>用实测回答一个具体问题，公桌的讨论声，会影响多远的工位？</p><div class="study-notes"><details open><summary>从观测走向布局</summary><p>在公桌位置播放稳定的测试声，沿工位方向在 2、4、6、8 米测量。用衰减曲线评估公桌位置调整后的影响范围。</p></details><details><summary>采集与校准</summary><p>五个公桌声级节点与个人工位 D2 同步观测。保留已完成的共同中位数相对校准结果，后续按六个测点对齐时间戳，未做参考声级计绝对校准。</p></details><details><summary>图纸与数据说明</summary><p>底图来自 2F4F平面图_t3.dwg。平面已清除文字与尺寸标注，按结构、门窗、家具区分线宽和灰度。三维建筑已按原 CAD 复核墙线、门洞、卫生间布局和楼梯方向，主体墙不再降低展示。灰色单人工位、开放格架和圆端公桌参照现场照片，层高与家具竖向细部尺寸按比例估计。默认显示采集端自动同步的实测摘要，时间按北京时间显示。实时图面采用当前分钟已采集样本的声能平均，未收到有效数据时不生成读数；历史可沿时间轴回放。演示数据需手动切换，CSV 仅作后备导入。</p></details></div></div></section>
+<section class="daily-summary shell" id="study" aria-labelledby="study-heading">
+  <header class="summary-heading"><div><h2 id="study-heading">当日观测摘要</h2><p>随地图日期更新，从记录中查看差异与缺口。</p></div><div class="summary-context"><strong id="summary-date">—</strong><span id="summary-source">等待观测</span></div></header>
+  <p class="summary-insight" id="summary-insight">正在读取当日记录…</p>
+  <div class="summary-columns">
+    <section aria-labelledby="ranking-heading"><div class="summary-section-head"><h3 id="ranking-heading">哪里更安静</h3><span>等效声级 · 低 → 高</span></div><p class="summary-caption" id="summary-common"></p><ol class="summary-ranking" id="summary-ranking"></ol></section>
+    <section aria-labelledby="peaks-heading"><div class="summary-section-head"><h3 id="peaks-heading">较吵时段</h3><span>点击回放 ↗</span></div><p class="summary-caption">单测点完整一分钟的最高读数，展示前三个分钟。</p><ol class="summary-peaks" id="summary-peaks"></ol></section>
+  </div>
+  <section class="summary-quality" aria-labelledby="quality-heading"><div class="summary-section-head"><h3 id="quality-heading">数据完整度</h3><span id="summary-window">暂无观测窗口</span></div>
+    <div class="coverage-legend"><span><i class="coverage-full"></i>完整分钟</span><span><i class="coverage-partial"></i>不完整分钟</span><span><i class="coverage-gap"></i>窗口内无记录</span><span>窗口外留白</span></div>
+    <div id="summary-coverage"></div>
+    <p class="summary-caption">观测窗口取当天最早至最晚的可用记录。覆盖率按有记录分钟计算，不代表全天完整率；缺口也可能来自暂停采集或排除记录。</p>
+  </section>
+  <div class="summary-notes">
+    <details><summary>统计口径与采集校准</summary><p>本区使用展示站当前载入的当日记录，受采集计划和记录排除范围限制。真实数据的完整分钟需含 60 个有效逐秒样本；排行仅使用六个测点共同完整的分钟，并按声能平均计算等效声级，不直接平均分贝。较吵时段按单测点一分钟等效声级排序，不是瞬时峰值，也不能据此判断声源或噪声传播。保留共同中位数相对校正，未做参考声级计绝对校准。演示模式下的结果不代表现场实测。</p></details>
+    <details><summary>图纸与数据说明</summary><p>底图来自 2F4F平面图_t3.dwg，墙线、门洞、卫生间和楼梯已按 CAD 复核。家具形态参考现场照片，层高及竖向细部按比例估计。热力为测点之间的空间插值，未模拟墙体传播。设备名表示当前位置，历史读数按记录时的位置映射。时间统一使用北京时间。</p></details>
+  </div>
+</section>
 </main>
 <footer class="shell footer"><a class="footer-brand" href="#top">声场<span>SOUND ATLAS</span></a><span>性能化与智能化建筑设计</span><a href="#top">回到顶部 ↑</a></footer>
 <dialog id="data-dialog" aria-labelledby="data-heading">
