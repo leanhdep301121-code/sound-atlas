@@ -11,6 +11,7 @@ let playback = null;
 let timelinePosition = null;
 let miniChartKey = null;
 let trendFocused = false;
+let trendPresentation = 'lanes';
 let trendFullDay = false;
 let trendWindow = {start:0,end:1439};
 let summaryKey = null;
@@ -60,6 +61,7 @@ for (const node of nodes) {
 }
 
 function fillOptions(select, options) {
+  if (select.options.length === options.length && options.every(([label, value], index) => select.options[index].text === String(label) && select.options[index].value === String(value))) return;
   select.replaceChildren(...options.map(([label, value]) => new Option(label, value)));
 }
 for (const node of OBSERVATION_NODES) {
@@ -131,7 +133,7 @@ function renderSourceStatus() {
   byId('live-updated').textContent = liveMode
     ? liveSnapshot?.receivedAt ? '最近同步 ' + syncTime.format(new Date(liveSnapshot.receivedAt)) : '尚未同步'
     : '';
-  if(liveMode&&liveSnapshot?.correctionApplied)byId('live-detail').textContent+=' · 记录按生效时间使用相对校正';
+  if(liveMode&&liveSnapshot?.correctionApplied)byId('live-detail').textContent+=' · 相对校正';
   byId('return-live').hidden = liveMode && followLive;
   byId('refresh-live').hidden = !liveMode;
   byId('live-nodes').hidden = !liveMode;
@@ -157,6 +159,7 @@ function applyLiveSnapshot(snapshot) {
   Object.assign(state, { days: source.days, day: source.day, slot: source.slot });
   if(followLive)timelinePosition=null;
   fillOptions(byId('day'), state.days.map(({ label }, index) => [label, index]));
+  fillOptions(byId('analysis-day'), state.days.map(({ label }, index) => [label, index]));
   render();
 }
 
@@ -195,6 +198,7 @@ function render() {
   const sound = frame.sound[selected.id];
   const connection = renderSourceStatus();
   byId('day').value = String(state.day);
+  byId('analysis-day').value = String(state.day);
   updateTimelineDisplay();
 
   const periodMinutes = frame.periodMinutes || 1;
@@ -228,6 +232,7 @@ function render() {
     mapButton.setAttribute('aria-pressed', state.highlighted && node.id === selected.id);
     pointReadings.get(node.id).textContent = value.replace(' dB(A)', '');
     const row = comparisonButtons.get(node.id);
+    row.button.dataset.status = state.mode === 'live' && connection.fresh ? liveSnapshot?.nodes.find(item => item.id === node.id)?.status || 'unknown' : 'unknown';
     row.button.setAttribute('aria-pressed', state.highlighted && node.id === selected.id);
     row.reading.textContent = value;
   }
@@ -284,16 +289,57 @@ function drawMiniCharts(frames, selected) {
 function chartArea(canvas) {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
-  return { width, height, left: 48, right: width - 24, top: 18, bottom: height - 36 };
+  return { width, height, left: trendPresentation === 'lanes' ? (width < 500 ? 44 : 58) : 48, right: width - (trendPresentation === 'lanes' ? 22 : 24), top: 18, bottom: height - 36 };
+}
+
+function drawRidgeChart(canvas, series) {
+  const {width, height, top, bottom, left, right} = chartArea(canvas);
+  if (width < 100 || height < 60 || !series.length) return;
+  const ctx = prepareCanvas(canvas, width, height);
+  const observed = series.flatMap(line => line.values.filter(value => value != null));
+  const min = observed.length ? Math.min(30, Math.floor(Math.min(...observed)/10)*10) : 30;
+  const max = observed.length ? Math.max(60, Math.ceil(Math.max(...observed)/10)*10) : 60;
+  byId('trend-scale').textContent = (series.length > 1 ? series.length + ' 行共用刻度 ' : '声级刻度 ') + min + '–' + max + ' dB(A)';
+  const x = slot => left + (slot-trendWindow.start)*(right-left)/(trendWindow.end-trendWindow.start);
+  const rowHeight = (bottom-top)/series.length;
+  ctx.font = '10px Manrope, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const slot of SoundAtlasTrends.ticks(trendWindow)) {
+    ctx.strokeStyle=colors('line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x(slot),top);ctx.lineTo(x(slot),bottom);ctx.stroke();
+    ctx.fillStyle=colors('muted');ctx.fillText(clockLabel(slot),x(slot),bottom+20);
+  }
+  series.forEach((line,index)=>{
+    const base=top+(index+1)*rowHeight-7;
+    const y=value=>base-(value-min)/(max-min)*(rowHeight-15);
+    const color=trendColor(line.node.id);
+    ctx.textAlign='right';ctx.fillStyle=line.selected?color:colors('muted');ctx.font=(line.selected?'650 ':'500 ')+'11px Manrope, sans-serif';
+    ctx.fillText(line.node.device||line.node.marker,left-12,top+index*rowHeight+rowHeight*.5);
+    ctx.strokeStyle=colors('line');ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(left,base);ctx.lineTo(right,base);ctx.stroke();
+    for(const segment of SoundAtlasTrends.segments(line.values)){
+      ctx.fillStyle=color;ctx.globalAlpha=line.selected ? .20 : .10;
+      ctx.beginPath();ctx.moveTo(x(segment[0].slot),base);
+      for(const point of segment)ctx.lineTo(x(point.slot),y(point.value));
+      ctx.lineTo(x(segment[segment.length-1].slot),base);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=line.selected?1:.8;ctx.strokeStyle=color;ctx.lineWidth=line.selected?1.9:1.15;
+      ctx.beginPath();segment.forEach((point,i)=>i?ctx.lineTo(x(point.slot),y(point.value)):ctx.moveTo(x(point.slot),y(point.value)));ctx.stroke();
+      if(segment.length===1){ctx.beginPath();ctx.arc(x(segment[0].slot),y(segment[0].value),2,0,Math.PI*2);ctx.fill();}
+    }
+    ctx.globalAlpha=1;
+    const value=line.values[state.slot];
+    if(value!=null&&state.slot>=trendWindow.start&&state.slot<=trendWindow.end){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x(state.slot),y(value),line.selected?3:2,0,Math.PI*2);ctx.fill();}
+  });
+  if(!observed.length){ctx.textAlign='center';ctx.font='13px Manrope, sans-serif';ctx.fillStyle=colors('muted');ctx.fillText('当天暂无记录',width/2,(top+bottom)/2);}
+  if(state.slot>=trendWindow.start&&state.slot<=trendWindow.end){ctx.strokeStyle=colors('muted');ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(x(state.slot),top);ctx.lineTo(x(state.slot),bottom);ctx.stroke();ctx.setLineDash([]);}
 }
 
 function drawChart(canvas, series) {
+  if (trendPresentation === 'lanes') { drawRidgeChart(canvas, series); return; }
   const {width, height, left, right, top, bottom} = chartArea(canvas);
   if (width < 80 || height < 40) return;
   const ctx = prepareCanvas(canvas, width, height);
   const observations = series.flatMap(line => line.values.filter(value => value != null));
   const min = observations.length ? Math.min(30, Math.floor(Math.min(...observations) / 10) * 10) : 30;
   const max = observations.length ? Math.max(60, Math.ceil(Math.max(...observations) / 10) * 10) : 60;
+  byId('trend-scale').textContent = '共同刻度 ' + min + '–' + max + ' dB(A)';
   const x = slot => left + (slot - trendWindow.start) * (right - left) / (trendWindow.end - trendWindow.start);
   const y = value => bottom - (value - min) * (bottom - top) / (max - min);
   ctx.font = '12px Consolas, monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -471,6 +517,7 @@ function setSource(source, mode) {
   if (mode !== 'live') livePoller?.stop();
   Object.assign(state, { days: source.days, day: source.day, slot: source.slot, mode, demo: mode === 'demo' });
   fillOptions(byId('day'), state.days.map(({ label }, index) => [label, index]));
+  fillOptions(byId('analysis-day'), state.days.map(({ label }, index) => [label, index]));
   selectNode(source.id);
   announce();
 }
@@ -480,6 +527,12 @@ byId('heatmap-opacity').addEventListener('input', event => {
   const frame = displayedFrame();
   drawHeatmap(frame);
   updateSpatialView(frame, state.table);
+});
+byId('trend-presentation').addEventListener('click', () => {
+  trendPresentation = trendPresentation === 'lanes' ? 'overlay' : 'lanes';
+  byId('trend-presentation').setAttribute('aria-pressed', trendPresentation === 'overlay');
+  byId('trend-presentation').textContent = trendPresentation === 'lanes' ? '叠加曲线' : '分层声纹';
+  drawCharts(state.days[state.day].frames);
 });
 byId('trend-range').addEventListener('click', () => {
   trendFullDay = !trendFullDay;
@@ -494,9 +547,11 @@ byId('trend-focus').addEventListener('click', () => {
   drawCharts(state.days[state.day].frames);
 });
 byId('trends').addEventListener('toggle', () => { if (byId('trends').open) timelineRender.request(); });
-byId('day').addEventListener('change', event => {
+function changeObservationDay(event) {
   stopFollowingLive(); setPlayback(false); state.day = Number(event.target.value); timelinePosition=null;timelineRender.cancel();render(); announce();
-});
+}
+byId('day').addEventListener('change', changeObservationDay);
+byId('analysis-day').addEventListener('change', changeObservationDay);
 byId('time-slider').addEventListener('input', event => {
   const wasFollowing=followLive;stopFollowingLive();setPlayback(false);
   const cursor=SoundAtlasMotion.timelineAt(Number(event.target.value));
@@ -783,6 +838,8 @@ mapViewport.addEventListener('pointerup', stopMapDrag);
 mapViewport.addEventListener('pointercancel', stopMapDrag);
 mapViewport.addEventListener('lostpointercapture', stopMapDrag);
 
+const heatmapLegendHome = document.createComment('Heatmap legend home');
+byId('heatmap-controls').before(heatmapLegendHome);
 const workspaceAnchor = document.createComment('Sound Atlas workspace');
 workspace.before(workspaceAnchor);
 const largeMapDialog = document.createElement('dialog');
@@ -795,6 +852,7 @@ byId('map-fullscreen').addEventListener('click', () => {
     return;
   }
   largeMapDialog.append(workspace);
+  workspace.querySelector('.map-stage').append(byId('heatmap-controls'));
   workspace.classList.add('is-expanded');
   byId('map-fullscreen').textContent = '退出大图';
   byId('map-fullscreen').setAttribute('aria-pressed', 'true');
@@ -802,6 +860,7 @@ byId('map-fullscreen').addEventListener('click', () => {
 });
 largeMapDialog.addEventListener('close', () => {
   workspaceAnchor.after(workspace);
+  heatmapLegendHome.after(byId('heatmap-controls'));
   workspace.classList.remove('is-expanded');
   byId('map-fullscreen').textContent = '全屏';
   byId('map-fullscreen').setAttribute('aria-pressed', 'false');
@@ -882,3 +941,11 @@ mapResizeObserver.observe(mapViewport);
 const chartResizeObserver = new ResizeObserver(() => render());
 chartResizeObserver.observe(byId('sound-chart'));
 chartResizeObserver.observe(byId('timeline-wave'));
+
+const chapterNavigation = new IntersectionObserver(entries => {
+  const visible = entries.filter(entry => entry.isIntersecting);
+  if (!visible.length) return;
+  const id = visible[visible.length-1].target.id;
+  document.querySelectorAll('.topbar nav a[href^="#"]').forEach(link => link.classList.toggle('nav-active', link.getAttribute('href') === '#' + id));
+}, {rootMargin:'-12% 0px -60% 0px'});
+['observatory','trends','study'].forEach(id => chapterNavigation.observe(byId(id)));
