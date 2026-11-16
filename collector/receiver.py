@@ -31,6 +31,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 from live_bridge import LiveBridge
 from remote_control import RemoteControl
+from upload_protocol import UploadError, read_upload, decode_upload, node_hint
 
 PORT = int(os.environ.get("SOUND_ATLAS_PORT", "8000"))
 DB_PATH = Path(os.environ.get("SOUND_ATLAS_DB", str(Path(__file__).with_name("noise.db")))).resolve()
@@ -1233,14 +1234,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_upload(self):
         try:
-            payload = json.loads(self.read_body())
-            node = str(payload["node"])[:16]
-            rows = []
-            for r in payload["rows"]:
-                vals = [v / 100.0 for v in r[1:1 + len(UPLOAD_ORDER)]]
-                vals += [None] * (len(UPLOAD_ORDER) - len(vals))   # 旧版节点没有 63 Hz、8 kHz
-                rows.append((node, int(r[0])) + tuple(vals))
-            with db_lock:
+            body = self.read_upload_body()
+            payload, node, rows = decode_upload(body, len(UPLOAD_ORDER))
+        except UploadError as error:
+            self.record_upload_error(error)
+            self.upload_reply(error.status, "upload rejected; retain batch and retry")
+            return
+        try:
+            # The whole batch and its aggregates commit together, or roll back together.
+            with db_lock, conn:
                 before = conn.total_changes
                 conn.executemany(
                     f"INSERT OR IGNORE INTO readings (node, ts_ms, {', '.join(UPLOAD_ORDER)}) "
@@ -1258,16 +1260,61 @@ class Handler(BaseHTTPRequestHandler):
                     (node, time.time(), self.client_address[0], payload.get("rssi"),
                      payload.get("up"), payload.get("buf"), payload.get("cfg"), payload.get("mic"),
                      payload.get("sync")))
-                conn.commit()
             if rows:
                 print(f"{local_time(time.time())}  {node:<3}  收到 {len(rows):>3} 条（新增 {added:>3}）"
                       f"  最新 LAeq {rows[-1][2]:5.1f} dB  信号 {payload.get('rssi')} dBm", flush=True)
             else:
                 print(f"{local_time(time.time())}  {node:<3}  心跳（未在记录）  信号 {payload.get('rssi')} dBm", flush=True)
-            self.send_text(200, "OK")
-        except Exception as e:  # 数据格式不对时不让程序崩溃
-            print(f"{local_time(time.time())}  上传数据有误：{e}", flush=True)
-            self.send_text(400, "bad request")
+        except Exception as error:
+            print(f"{local_time(time.time())}  {node} 上传未保存：{error}；等待重传", flush=True)
+            self.upload_reply(500, "save failed; retain batch and retry")
+            return
+        self.upload_reply(200, "OK", node)
+
+    def read_upload_body(self):
+        previous_timeout = self.connection.gettimeout()
+        self.connection.settimeout(10)
+        try:
+            return read_upload(self.rfile, self.headers)
+        finally:
+            self.connection.settimeout(previous_timeout)
+
+    def upload_reply(self, status, text, node=None):
+        try:
+            self.send_text(status, text)
+        except OSError:
+            self.close_connection = True
+            if status == 200:
+                print(f"{local_time(time.time())}  {node} 已保存，确认未送达；重传会自动去重", flush=True)
+
+    def record_upload_error(self, error):
+        node = node_hint(error.body)
+        if node is None:
+            with db_lock:
+                match = conn.execute("SELECT node FROM nodes WHERE ip=? ORDER BY last_seen DESC LIMIT 1",
+                                     (self.client_address[0],)).fetchone()
+            node = match[0] if match else "unknown"
+        expected = error.expected
+        if expected is None:
+            expected = self.headers.get("Content-Length")
+        record = {"time_beijing": local_time(time.time()), "node": node,
+                  "ip": self.client_address[0], "kind": error.kind,
+                  "expected_bytes": expected, "received_bytes": len(error.body),
+                  "json_position": error.position, "message": str(error)}
+        label = {"incomplete": "连接提前结束", "interrupted": "连接中断或超时",
+                 "json": "完整接收但 JSON 格式异常", "empty": "空上传"}.get(error.kind, "上传格式异常")
+        print(f"{record['time_beijing']}  {node} {label}：应收 {expected} 字节，"
+              f"实收 {len(error.body)} 字节，位置 {error.position}；未确认成功，等待重传", flush=True)
+        # Retain at most one bounded sample per known device, locally only.
+        key = node if node in EXPECTED_NODES else "unknown"
+        try:
+            folder = DB_PATH.parent / "logs" / "upload_diagnostics"
+            folder.mkdir(parents=True, exist_ok=True)
+            with db_lock:
+                (folder / f"{key}.body.bin").write_bytes(error.body)
+                (folder / f"{key}.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as log_error:
+            print(f"上传诊断文件写入失败：{log_error}", flush=True)
 
     def send_export(self, q):
         """导出 CSV。clean=1（默认）：去掉排除时段和无效读数；clean=0：全部原始数据并加两列标记。

@@ -27,7 +27,7 @@ class ReceiverIntegration(unittest.TestCase):
                 responses = []
                 handler.send_text = lambda code, value, *args: responses.append((code, value))
                 payload = {'node':'N1','cfg':plan[0],'mic':0,'sync':1,'rows':[[now-2000,5000,5500],[now-1000,6000,6500]]}
-                handler.read_body = lambda: json.dumps(payload).encode()
+                handler.read_upload_body = lambda: json.dumps(payload).encode()
                 handler.handle_upload()
                 self.assertEqual(responses[-1][0],200)
                 receiver.SYNC_BRIDGE = receiver.LiveBridge(receiver.DB_PATH,config_path=Path(directory)/'disabled.json')
@@ -59,7 +59,7 @@ class ReceiverIntegration(unittest.TestCase):
                     self.assertIn('声场',page)
                 self.assertEqual(receiver.EXPECTED_NODES,['N1','N2','N3','N5','D1','D2'])
                 payload['node']='D1'
-                handler.read_body=lambda:json.dumps(payload).encode()
+                handler.read_upload_body=lambda:json.dumps(payload).encode()
                 handler.handle_upload()
                 receiver.SYNC_BRIDGE.invalidate()
                 d1=receiver.SYNC_BRIDGE.snapshot()
