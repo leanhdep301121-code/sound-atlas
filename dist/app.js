@@ -10,6 +10,9 @@ const pointReadings = new Map();
 let playback = null;
 let timelinePosition = null;
 let miniChartKey = null;
+let trendFocused = false;
+const trendButtons = new Map();
+const trendColor = id => colors('trend-' + OBSERVATION_NODES.findIndex(node => node.id === id));
 const timelineRender = SoundAtlasMotion.createFrameQueue(() => render());
 let readGeneration = 0;
 let liveSnapshot = null;
@@ -55,7 +58,18 @@ for (const node of nodes) {
 function fillOptions(select, options) {
   select.replaceChildren(...options.map(([label, value]) => new Option(label, value)));
 }
-fillOptions(byId('trend-table'), OBSERVATION_NODES.map(node => [node.name, node.id]));
+for (const node of OBSERVATION_NODES) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'trend-node';
+  const swatch = document.createElement('i'); swatch.setAttribute('aria-hidden', 'true');
+  swatch.style.background = 'var(--trend-' + OBSERVATION_NODES.indexOf(node) + ')';
+  const label = document.createElement('span'); label.textContent = node.device || node.marker;
+  button.append(swatch, label);
+  button.setAttribute('aria-label', '查看 ' + (node.device || node.marker) + ' 趋势');
+  button.addEventListener('click', () => { selectNode(node.id); announce(); });
+  byId('trend-legend').append(button); trendButtons.set(node.id, button);
+}
 
 const comparisonButtons = new Map();
 for (const node of nodes) {
@@ -202,7 +216,6 @@ function render() {
     row.button.setAttribute('aria-pressed', state.highlighted && node.id === selected.id);
     row.reading.textContent = value;
   }
-  byId('trend-table').value = state.table;
   byId('chart-table-name').textContent = OBSERVATION_NODES.find(node => node.id === state.table).name;
   drawHeatmap(frame);
   updateSpatialView(frame, selected.id);
@@ -258,74 +271,63 @@ function chartArea(canvas) {
   return { width, height, left: 39, right: width - 18, top: 9, bottom: height - 25 };
 }
 
-function drawChart(canvas, values) {
-  const area = chartArea(canvas);
-  const { width, height, left, right, top, bottom } = area;
-  if (width < 80) return;
+function drawChart(canvas, series) {
+  const {width, height, left, right, top, bottom} = chartArea(canvas);
+  if (width < 80 || height < 40) return;
   const ctx = prepareCanvas(canvas, width, height);
-  const observations = values.filter(value => value != null);
-  const step = 10;
-  const min = Math.min(30, Math.floor(Math.min(...observations) / step) * step);
-  const max = Math.max(60, Math.ceil(Math.max(...observations) / step) * step);
+  const observations = series.flatMap(line => line.values.filter(value => value != null));
+  const min = observations.length ? Math.min(30, Math.floor(Math.min(...observations) / 10) * 10) : 30;
+  const max = observations.length ? Math.max(60, Math.ceil(Math.max(...observations) / 10) * 10) : 60;
   const x = slot => left + slot * (right - left) / (SLOTS - 1);
   const y = value => bottom - (value - min) * (bottom - top) / (max - min);
-  const line = colors('line');
-  const accent = colors('accent');
-  ctx.font = '10px Consolas, monospace';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  for (let index = 0; index <= 3; index += 1) {
+  ctx.font = '10px Consolas, monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let index = 0; index <= 3; index++) {
     const value = min + (max - min) * index / 3;
-    const py = y(value);
-    ctx.strokeStyle = line;
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(right, py); ctx.stroke();
-    ctx.fillStyle = colors('muted');
-    ctx.fillText(Math.round(value), left - 8, py);
+    ctx.strokeStyle = colors('line'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(left, y(value)); ctx.lineTo(right, y(value)); ctx.stroke();
+    ctx.fillStyle = colors('muted'); ctx.fillText(Math.round(value), left - 8, y(value));
   }
   if (!observations.length) {
-    ctx.textAlign = 'center';
-    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center'; ctx.font = '12px system-ui';
     ctx.fillText('当天暂无记录', width / 2, (top + bottom) / 2);
   }
-  ctx.fillStyle = colors('muted');
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'center'; ctx.fillStyle = colors('muted');
   for (const slot of [0, 360, 720, 1080, 1439]) ctx.fillText(clockLabel(slot), x(slot), bottom + 13);
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  let previous = null;
-  for (const [slot, value] of values.entries()) {
-    if (value != null) {
-      if (previous == null) ctx.moveTo(x(slot), y(value));
-      else ctx.lineTo(x(slot), y(value));
+  // Draw the selected series last so it remains readable where curves overlap.
+  for (const line of [...series].sort((a, b) => Number(a.selected) - Number(b.selected))) {
+    ctx.strokeStyle = trendColor(line.node.id); ctx.fillStyle = trendColor(line.node.id);
+    ctx.lineWidth = line.selected ? 2.2 : 1.2; ctx.globalAlpha = line.selected ? 1 : .65;
+    for (const segment of SoundAtlasTrends.segments(line.values)) {
+      ctx.beginPath();
+      segment.forEach(({slot, value}, index) => index ? ctx.lineTo(x(slot), y(value)) : ctx.moveTo(x(slot), y(value)));
+      ctx.stroke();
+      if (segment.length === 1) { ctx.beginPath(); ctx.arc(x(segment[0].slot), y(segment[0].value), 2, 0, Math.PI * 2); ctx.fill(); }
     }
-    previous = value;
+    const current = line.values[state.slot];
+    if (current != null) { ctx.beginPath(); ctx.arc(x(state.slot), y(current), line.selected ? 3.5 : 2.5, 0, Math.PI * 2); ctx.fill(); }
   }
-  ctx.stroke();
-  ctx.fillStyle = accent;
-  for (const [slot, value] of values.entries()) {
-    if (value == null || values[slot - 1] != null || values[slot + 1] != null) continue;
-    ctx.beginPath(); ctx.arc(x(slot), y(value), 3, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(x(state.slot), top); ctx.lineTo(x(state.slot), bottom); ctx.stroke();
-  ctx.setLineDash([]);
-  if (values[state.slot] != null) {
-    ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(x(state.slot), y(values[state.slot]), 4, 0, Math.PI * 2); ctx.fill();
-  }
+  ctx.globalAlpha = 1; ctx.strokeStyle = colors('muted'); ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(x(state.slot), top); ctx.lineTo(x(state.slot), bottom); ctx.stroke(); ctx.setLineDash([]);
 }
 
+function trendReadout(slot = state.slot) {
+  const frame = state.days[state.day].frames[slot];
+  byId('trend-readout').textContent = clockLabel(slot) + ' · ' + OBSERVATION_NODES
+    .filter(node => !trendFocused || node.id === state.table)
+    .map(node => (node.device || node.marker) + ' ' + (frame.sound[node.id]?.toFixed(1) ?? '—')).join(' / ') + ' dB(A)';
+}
 function drawCharts(frames) {
-  const sound = frames.map(frame => frame.sound[state.table]);
-  const soundChart = byId('sound-chart');
-  const time = clockLabel(state.slot);
-  soundChart.setAttribute('aria-label', OBSERVATION_NODES.find(node => node.id === state.table).name + ' 当日声级，' + time + ' ' +
-    (sound[state.slot] == null ? '无记录' : sound[state.slot].toFixed(1) + ' dB(A)'));
-  drawChart(soundChart, sound);
+  const series = SoundAtlasTrends.series(frames, OBSERVATION_NODES, state.table, trendFocused);
+  const selected = OBSERVATION_NODES.find(node => node.id === state.table);
+  const chart = byId('sound-chart');
+  chart.setAttribute('aria-label', (trendFocused ? selected.name : '六个测点') + '当日声级趋势，当前时间 ' + clockLabel(state.slot));
+  byId('chart-table-name').textContent = '当前测点 ' + selected.name;
+  byId('trend-date').textContent = state.days[state.day].label;
+  for (const [id, button] of trendButtons) {
+    button.setAttribute('aria-pressed', id === state.table);
+    button.classList.toggle('is-muted', trendFocused && id !== state.table);
+  }
+  trendReadout(); drawChart(chart, series);
 }
 
 function setPlayback(playing) {
@@ -369,7 +371,13 @@ byId('heatmap-opacity').addEventListener('input', event => {
   drawHeatmap(state.days[state.day].frames[state.slot]);
   updateSpatialView(state.days[state.day].frames[state.slot], state.table);
 });
-byId('trend-table').addEventListener('change', event => { selectNode(event.target.value); announce(); });
+byId('trend-focus').addEventListener('click', () => {
+  trendFocused = !trendFocused;
+  byId('trend-focus').setAttribute('aria-pressed', trendFocused);
+  byId('trend-focus').textContent = trendFocused ? '显示全部测点' : '只看所选';
+  drawCharts(state.days[state.day].frames);
+});
+byId('trends').addEventListener('toggle', () => { if (byId('trends').open) timelineRender.request(); });
 byId('day').addEventListener('change', event => {
   stopFollowingLive(); setPlayback(false); state.day = Number(event.target.value); timelinePosition=null;timelineRender.cancel();render(); announce();
 });
@@ -396,6 +404,18 @@ byId('play').addEventListener('click', () => {
 });
 {
   const chart = byId('sound-chart');
+  chart.addEventListener('pointermove', event => {
+    const {left, right} = chartArea(chart);
+    const offset = event.clientX - chart.getBoundingClientRect().left;
+    trendReadout(Math.max(0, Math.min(SLOTS - 1, Math.round((offset - left) * (SLOTS - 1) / (right - left)))));
+  });
+  chart.addEventListener('pointerleave', () => trendReadout());
+  chart.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); stopFollowingLive(); setPlayback(false); timelineRender.cancel(); timelinePosition = null;
+    state.slot = event.key === 'Home' ? 0 : event.key === 'End' ? SLOTS - 1 : Math.max(0, Math.min(SLOTS - 1, state.slot + (event.key === 'ArrowRight' ? 1 : -1)));
+    render(); announce();
+  });
   chart.addEventListener('click', event => {
     stopFollowingLive();
     const { left, right } = chartArea(chart);

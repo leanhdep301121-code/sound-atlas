@@ -361,3 +361,39 @@ dialog input[type="file"] { display: block; padding: 13px; width: 100%; backgrou
 .spatial-assumptions { padding: 7px 18px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); }
 
 .dorm-observation{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 0;border-top:1px solid var(--line)}.dorm-observation strong{font-size:16px}.dorm-observation p{font-size:12px;color:var(--muted);margin:4px 0}.dorm-observation button[aria-pressed=true]{border-color:var(--accent)}
+/* The compact trend panel stays with the map, including fullscreen playback. */
+:root { --trend-0:#ba4a2b; --trend-1:#2674ae; --trend-2:#24846b; --trend-3:#8160ad; --trend-4:#a67419; --trend-5:#b74e7c; }
+[data-theme="dark"] { --trend-0:#f29b7f; --trend-1:#7db7ec; --trend-2:#6ac6aa; --trend-3:#baa0e7; --trend-4:#e6c370; --trend-5:#e599ba; }
+.workspace-trends { padding:14px 0 10px; border-top:1px solid var(--line); scroll-margin-top:24px; }
+.workspace-trends summary { display:flex; align-items:center; gap:12px; cursor:pointer; list-style:none; }
+.workspace-trends summary::-webkit-details-marker { display:none; }
+.workspace-trends summary::before { content:'›'; color:var(--muted); font-size:19px; line-height:1; transform:rotate(0); }
+.workspace-trends[open] summary::before { transform:rotate(90deg); }
+.workspace-trends summary h3 { font-size:14px; font-weight:600; }
+.workspace-trends summary span { color:var(--muted); font-size:11px; }
+.trend-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:10px 0 8px; }
+.trend-legend { display:flex; flex-wrap:wrap; gap:5px; }
+.trend-node { display:flex; align-items:center; gap:7px; border:1px solid transparent; border-radius:5px; background:transparent; color:var(--muted); padding:5px 9px; font:12px var(--mono); }
+.trend-node i { width:18px; height:2px; display:block; }
+.trend-node[aria-pressed="true"] { color:var(--ink); border-color:var(--line); background:var(--paper); }
+.trend-node[aria-pressed="true"] i { height:3px; }
+.trend-node.is-muted { opacity:.45; }
+#trend-focus { background:var(--paper); color:var(--ink); border:1px solid var(--line); border-radius:5px; font-size:11px; padding:6px 9px; white-space:nowrap; }
+.workspace-trends .chart-label { color:var(--muted); font-size:11px; gap:12px; margin-bottom:6px; }
+.workspace-trends .trend-canvas { height:170px; }
+.trend-footer { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; }
+#trend-readout { color:var(--muted); font:10px var(--mono); }
+.trend-footer .chart-note { margin-top:4px; font-size:10px; }
+.spatial-workspace.is-expanded .workspace-trends { padding-top:8px; }
+.spatial-workspace.is-expanded .workspace-trends .trend-canvas { height:130px; }
+@media (max-width:767px) {
+  .trend-toolbar { align-items:flex-start; gap:6px; }
+  .trend-node { padding:5px 6px; font-size:11px; }
+  .trend-node i { width:12px; }
+  .workspace-trends .trend-canvas { height:155px; }
+  .trend-footer { display:block; }
+}
+@media (max-height:700px) {
+  .spatial-workspace.is-expanded .workspace-trends .trend-canvas { height:90px; }
+  .spatial-workspace.is-expanded .trend-footer { display:none; }
+}

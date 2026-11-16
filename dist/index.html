@@ -9,10 +9,10 @@ try {
   document.documentElement.dataset.theme = localStorage.getItem('sound-atlas-theme') === 'dark' ? 'dark' : 'light';
 } catch { document.documentElement.dataset.theme = 'light'; }
 </script>
-<link rel="stylesheet" href="styles.css?v=unified-heatmap">
+<link rel="stylesheet" href="styles.css?v=trend-comparison">
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
 <link rel="modulepreload" href="spatial-view.js?v=mesh-binary">
-<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=minute-playback" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js" defer></script><script src="app.js?v=unified-heatmap" defer></script>
+<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=minute-playback" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js" defer></script><script src="trends.js" defer></script><script src="app.js?v=trend-comparison" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#observatory">跳到声环境图</a>
@@ -87,6 +87,13 @@ try {
       <div class="inspection-value"><div class="readout"><span id="node-value">-</span><span id="node-unit">dB(A)</span></div><p class="reading-caption" id="node-metric">1 分钟等效 A 计权声级</p></div>
       <div class="inspection-trend"><p id="period-label">14:30 至 14:31</p><canvas id="node-spark" width="280" height="48" aria-label="当前测点的当日变化" role="img"></canvas><p class="node-detail" id="node-detail"></p></div>
     </aside>
+    <details class="workspace-trends" id="trends" open>
+      <summary><h3 id="trend-heading">趋势曲线</h3><span>当天 · 1 分钟统计</span></summary>
+      <div class="trend-toolbar"><div class="trend-legend" id="trend-legend" role="group" aria-label="选择趋势测点"></div><button type="button" id="trend-focus" aria-pressed="false">只看所选</button></div>
+      <div class="chart-label"><span id="chart-table-name">N3</span><span id="trend-date"></span><span class="chart-unit">声级 / dB(A)</span></div>
+      <canvas id="sound-chart" class="trend-canvas" role="img" tabindex="0" aria-label="六个测点当日声级趋势" aria-describedby="trend-help"></canvas>
+      <div class="trend-footer"><output id="trend-readout">等待观测</output><p class="chart-note" id="trend-help">点按曲线定位时间；方向键逐分钟查看。缺测时段留空。</p></div>
+    </details>
     <div class="timeline">
       <div class="time-control"><button type="button" class="play-button" id="play" aria-label="播放时间回放"><span aria-hidden="true" id="play-symbol">▶</span><span class="sr-only" id="play-text">播放</span></button><div><label class="sr-only" for="day">观测日期</label><select id="day"></select><output id="time-output" for="time-slider">14:30</output></div></div>
       <div class="timeline-track"><canvas id="timeline-wave" width="800" height="40" aria-hidden="true"></canvas><label class="sr-only" for="time-slider">观测时段</label><input type="range" id="time-slider" min="0" max="1439" step="0.01" value="870"><div class="ticks" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:59</span></div></div>
@@ -96,7 +103,6 @@ try {
 </div>
 <div class="comparison"><div class="comparison-heading"><h3 id="comparison-heading">同一时段的公桌</h3><p id="inspection-foot"></p></div><div id="comparison-list" class="comparison-list"></div></div><p class="sr-only" id="change-announcement" aria-live="polite"></p>
 </section>
-<section class="trends shell" id="trends" aria-labelledby="trend-heading"><div class="section-head"><div><h2 id="trend-heading">一天之中，<br>声音怎样变化？</h2><p>沿着时间轴，比较公桌与个人工位的声级起伏。</p></div><label class="table-select" for="trend-table">查看测点 <select id="trend-table"></select></label></div><div class="chart-panel"><div class="chart-label"><i class="legend-line" aria-hidden="true"></i><span id="chart-table-name">公桌 1</span><span class="chart-unit">声级 / dB(A)</span></div><canvas id="sound-chart" class="trend-canvas" role="img" aria-label="所选公桌当日声级折线图"></canvas><p class="chart-note">点按曲线回到相应时段。声级变化的原因需要结合现场记录判断。</p></div></section>
 <section class="study shell" id="study" aria-labelledby="study-heading"><figure class="study-photo"><img src="assets/studio.webp" width="1200" height="800" alt="开放建筑工作室的概念场景，长桌沿窗展开" loading="lazy"><figcaption>开放工位场景示意</figcaption></figure><div class="study-copy"><h2 id="study-heading">给讨论留位置，<br>也给专注留空间。</h2><p>用实测回答一个具体问题，公桌的讨论声，会影响多远的工位？</p><div class="study-notes"><details open><summary>从观测走向布局</summary><p>在公桌位置播放稳定的测试声，沿工位方向在 2、4、6、8 米测量。用衰减曲线评估公桌位置调整后的影响范围。</p></details><details><summary>采集与校准</summary><p>五个公桌声级节点与个人工位 D2 同步观测。保留已完成的共同中位数相对校准结果，后续按六个测点对齐时间戳，未做参考声级计绝对校准。</p></details><details><summary>图纸与数据说明</summary><p>底图来自 2F4F平面图_t3.dwg。平面已清除文字与尺寸标注，按结构、门窗、家具区分线宽和灰度。三维建筑已按原 CAD 复核墙线、门洞、卫生间布局和楼梯方向，主体墙不再降低展示。灰色单人工位、开放格架和圆端公桌参照现场照片，层高与家具竖向细部尺寸按比例估计。默认显示采集端自动同步的实测摘要，时间按北京时间显示。实时图面采用当前分钟已采集样本的声能平均，未收到有效数据时不生成读数；历史可沿时间轴回放。演示数据需手动切换，CSV 仅作后备导入。</p></details></div></div></section>
 </main>
 <footer class="shell footer"><a class="footer-brand" href="#top">声场<span>SOUND ATLAS</span></a><span>性能化与智能化建筑设计</span><a href="#top">回到顶部 ↑</a></footer>
