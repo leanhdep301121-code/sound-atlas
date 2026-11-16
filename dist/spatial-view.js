@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from './assets/vendor/OrbitControls.js';
 import { RoomEnvironment } from './assets/vendor/RoomEnvironment.js';
+import { loadSpatialModel } from './spatial-model.js';
 
-const MODEL_URL = new URL('./assets/model/second-floor.json', import.meta.url);
 const MATERIALS_URL = new URL('./assets/materials/materials.json', import.meta.url);
 const VIEW_DIRECTION = new THREE.Vector3(1, 1, 1).normalize();
 const VIEW_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), VIEW_DIRECTION).normalize();
@@ -29,47 +29,6 @@ function materialColor(value) {
   return new THREE.Color().setRGB(value[0] / divisor, value[1] / divisor, value[2] / divisor, THREE.SRGBColorSpace);
 }
 
-function mergeGeometry(records, textureSize) {
-  const vertexCount = records.reduce((total, record) => total + record.positions.length / 3, 0);
-  const indexCount = records.reduce((total, record) => total + record.indices.length, 0);
-  const positions = new Float32Array(vertexCount * 3);
-  const normals = new Float32Array(vertexCount * 3);
-  const uvs = new Float32Array(vertexCount * 2);
-  const indices = new Uint32Array(indexCount);
-  const haveNormals = records.every(record => record.normals?.length === record.positions.length);
-  const haveUvs = records.every(record => record.uvs?.length === record.positions.length / 3 * 2);
-  let vertexOffset = 0;
-  let indexOffset = 0;
-  for (const record of records) {
-    positions.set(record.positions, vertexOffset * 3);
-    if (haveNormals) normals.set(record.normals, vertexOffset * 3);
-    if (haveUvs) uvs.set(record.uvs, vertexOffset * 2);
-    for (const index of record.indices) indices[indexOffset++] = index + vertexOffset;
-    vertexOffset += record.positions.length / 3;
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-  if (haveNormals) geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-  else geometry.computeVertexNormals();
-  if (!haveUvs) {
-    const computedNormals = geometry.getAttribute('normal').array;
-    for (let vertex = 0; vertex < vertexCount; vertex += 1) {
-      const offset = vertex * 3;
-      const [x, y, z] = positions.subarray(offset, offset + 3);
-      const nx = Math.abs(computedNormals[offset]);
-      const ny = Math.abs(computedNormals[offset + 1]);
-      const nz = Math.abs(computedNormals[offset + 2]);
-      const horizontal = ny >= Math.max(nx, nz);
-      uvs[vertex * 2] = (horizontal || nz >= nx ? x : z) / textureSize[0];
-      uvs[vertex * 2 + 1] = (horizontal ? -z : y) / textureSize[1];
-    }
-  }
-  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  return geometry;
-}
 
 export async function createSpatialView({ container, nodes, onSelect = () => {}, onStatus = () => {}, northBearingDegrees = null, onCompassChange = () => {} }) {
   if (!(container instanceof HTMLElement)) throw new Error('三维视图容器不可用。');
@@ -315,7 +274,7 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
 
   try {
     const definitionsReady = readJson(MATERIALS_URL, '三维材质', 6000).catch(() => { textureFailures++; return {}; });
-    const model = await readJson(MODEL_URL, '三维模型');
+    const model = await loadSpatialModel();
     const pendingMaterials = [];
     if (!Array.isArray(model.meshes) || model.meshes.length === 0 || !Array.isArray(model.materials)) throw new Error('三维模型数据不完整。');
     const textureLoader = new THREE.TextureLoader();
@@ -353,8 +312,6 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
     }
 
     for (const definition of model.materials) {
-      // Physical sizes match the bundled material manifest; detail maps arrive after first paint.
-      const textureSize = { floor: [3, 3], wood: [.5, .5], plaster: [1, 1] }[definition.textureKey] ?? [2, 2];
       const useWhitePlaster = definition.textureKey === 'plaster';
       const opacity = definition.opacity ?? 1;
       const material = new THREE.MeshPhysicalMaterial({
@@ -375,12 +332,12 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
         thickness: opacity < .7 ? .025 : 0,
       });
       materialResources.add(material);
-      const records = model.meshes.filter(mesh => String(mesh.material) === String(definition.id));
-      if (!records.length) continue;
-      for (const record of records) {
-        if (!Array.isArray(record.positions) || record.positions.length % 3 || !Array.isArray(record.indices) || record.indices.length % 3 || record.indices.some(index => index < 0 || index >= record.positions.length / 3)) throw new Error('三维模型网格索引有误。');
-      }
-      const geometry = mergeGeometry(records, textureSize);
+      const sourceMesh = model.meshes.find(mesh => String(mesh.userData.materialId) === String(definition.id));
+      if (!sourceMesh) continue;
+      const geometry = sourceMesh.geometry;
+      sourceMesh.material.dispose();
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
       geometryResources.add(geometry);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = definition.name ?? String(definition.id);

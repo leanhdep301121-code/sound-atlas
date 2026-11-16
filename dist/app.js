@@ -521,7 +521,7 @@ function loadSpatialView() {
   }
   byId('spatial-loading').hidden = false;
   byId('spatial-error').hidden = true;
-  spatialLoad = import('./spatial-view.js?v=resilient-loading')
+  spatialLoad = import('./spatial-view.js?v=mesh-binary')
     .then(module => module.createSpatialView({
       container: byId('spatial-scene'),
       nodes: nodes.map(node => ({ ...node, isGate: false })),
