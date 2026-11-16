@@ -9,7 +9,7 @@ const VIEW_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), 
 const VIEW_UP = new THREE.Vector3().crossVectors(VIEW_DIRECTION, VIEW_RIGHT).normalize();
 const WORK_AREA = new THREE.Box3(new THREE.Vector3(16.8, 0, -21.2), new THREE.Vector3(41.5, 3.2, -2.3));
 
-async function readJson(url, description, timeout = 20000) {
+async function readJson(url, description, timeout = 60000) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
