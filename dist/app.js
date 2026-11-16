@@ -3,7 +3,7 @@
 const byId = id => document.getElementById(id);
 const nodes = TABLES;
 const initialLiveSource = SoundAtlasLive.selectPeriod(null);
-const state = { ...initialLiveSource, demo: false, mode: 'live', layer: 'sound', table: 'A', highlighted: true };
+const state = { ...initialLiveSource, demo: false, mode: 'live', layer: 'heatmap', table: 'A', highlighted: true };
 const colors = name => getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
 const mapButtons = new Map();
 const pointReadings = new Map();
@@ -73,7 +73,6 @@ for (const node of nodes) {
 
 function selectNode(id) {
   if (!OBSERVATION_NODES.some(node => node.id === id)) return;
-  if (state.layer !== 'heatmap') state.layer = 'sound';
   state.table = id;
   state.highlighted = true;
   render();
@@ -88,26 +87,6 @@ function prepareCanvas(canvas, width, height) {
   ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
   ctx.clearRect(0, 0, width, height);
   return ctx;
-}
-
-function drawPlan(frame) {
-  const ctx = prepareCanvas(byId('floor'), FLOOR_PLAN.width, FLOOR_PLAN.height);
-  if (state.layer === 'heatmap') return;
-  const accent = colors('accent');
-  if (state.layer === 'sound') {
-    for (const node of TABLES) {
-      const level = frame.sound[node.id];
-      if (level == null) continue;
-      // A fixed footprint encodes the local reading, not a propagation estimate.
-      ctx.globalAlpha = Math.max(.12, Math.min(.52, (level - 28) / 80));
-      ctx.fillStyle = accent;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, 24, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    return;
-  }
 }
 
 function labelValue(node, frame) {
@@ -194,8 +173,6 @@ function render() {
   const periodMinutes = frame.periodMinutes || 1;
   const periodStart = Math.floor(state.slot / periodMinutes) * periodMinutes;
   byId('period-label').textContent = clockLabel(periodStart) + ' 至 ' + clockLabel(periodStart + periodMinutes);
-  byId('layer-sound').setAttribute('aria-pressed', state.layer === 'sound');
-  byId('layer-heatmap').setAttribute('aria-pressed', state.layer === 'heatmap');
   byId('inspection-heading').textContent = selected.name;
   byId('node-marker').textContent = selected.marker;
   byId('node-location').textContent = selected.location;
@@ -227,7 +204,6 @@ function render() {
   }
   byId('trend-table').value = state.table;
   byId('chart-table-name').textContent = OBSERVATION_NODES.find(node => node.id === state.table).name;
-  if (mapView === 'plan') drawPlan(frame);
   drawHeatmap(frame);
   updateSpatialView(frame, selected.id);
   drawCharts(date.frames);
@@ -388,12 +364,6 @@ function setSource(source, mode) {
   announce();
 }
 
-byId('layer-sound').addEventListener('click', () => { state.layer = 'sound'; render(); announce(); });
-byId('layer-heatmap').addEventListener('click', () => {
-  state.layer = 'heatmap';
-  render();
-  announce();
-});
 byId('heatmap-opacity').addEventListener('input', event => {
   byId('heatmap-opacity-value').textContent = event.target.value + '%';
   drawHeatmap(state.days[state.day].frames[state.slot]);

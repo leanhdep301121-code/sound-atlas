@@ -9,10 +9,10 @@ try {
   document.documentElement.dataset.theme = localStorage.getItem('sound-atlas-theme') === 'dark' ? 'dark' : 'light';
 } catch { document.documentElement.dataset.theme = 'light'; }
 </script>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=unified-heatmap">
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
 <link rel="modulepreload" href="spatial-view.js?v=mesh-binary">
-<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=minute-playback" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js" defer></script><script src="app.js?v=timeline-date-fix" defer></script>
+<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=minute-playback" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js" defer></script><script src="app.js?v=unified-heatmap" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#observatory">跳到声环境图</a>
@@ -38,10 +38,6 @@ try {
       <button type="button" id="view-plan" aria-pressed="false">原始平面</button>
       <button type="button" id="view-spatial" aria-pressed="true">空间视图</button>
     </div>
-    <div class="segmented" aria-label="平面图层">
-      <button type="button" id="layer-sound" aria-pressed="true">声级</button>
-      <button type="button" id="layer-heatmap" aria-pressed="false">热力</button>
-    </div>
     <div class="zoom-controls" role="group" aria-label="平面缩放">
       <button type="button" id="zoom-out" aria-label="缩小平面" disabled>−</button>
       <output id="zoom-level">100%</output>
@@ -56,7 +52,6 @@ try {
     <div class="map-placement"><div class="plan" id="plan">
       <canvas id="heatmap" class="heatmap-canvas" width="1000" height="446" role="img" aria-label="噪声热力插值分布" hidden></canvas>
       <img class="floorplan-base original-image" src="assets/floorplan-2f.svg" width="1000" height="446.154" alt="二层建筑平面，按结构、门窗和家具分层显示。">
-      <canvas id="floor" width="1000" height="446" aria-hidden="true"></canvas>
       <div class="map-points" id="map-points"></div>
     </div></div>
     <div id="spatial-scene"></div>
