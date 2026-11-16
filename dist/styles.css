@@ -361,41 +361,64 @@ dialog input[type="file"] { display: block; padding: 13px; width: 100%; backgrou
 .spatial-assumptions { padding: 7px 18px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); }
 
 .dorm-observation{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 0;border-top:1px solid var(--line)}.dorm-observation strong{font-size:16px}.dorm-observation p{font-size:12px;color:var(--muted);margin:4px 0}.dorm-observation button[aria-pressed=true]{border-color:var(--accent)}
-/* The compact trend panel stays with the map, including fullscreen playback. */
+/* Trends emphasize readable values and a useful plotting range. */
 :root { --trend-0:#ba4a2b; --trend-1:#2674ae; --trend-2:#24846b; --trend-3:#8160ad; --trend-4:#a67419; --trend-5:#b74e7c; }
 [data-theme="dark"] { --trend-0:#f29b7f; --trend-1:#7db7ec; --trend-2:#6ac6aa; --trend-3:#baa0e7; --trend-4:#e6c370; --trend-5:#e599ba; }
-.workspace-trends { padding:14px 0 10px; border-top:1px solid var(--line); scroll-margin-top:24px; }
-.workspace-trends summary { display:flex; align-items:center; gap:12px; cursor:pointer; list-style:none; }
+.workspace-trends { padding:26px 0 18px; border-top:1px solid var(--line); scroll-margin-top:24px; }
+.workspace-trends summary { display:flex; align-items:center; gap:14px; cursor:pointer; list-style:none; }
 .workspace-trends summary::-webkit-details-marker { display:none; }
-.workspace-trends summary::before { content:'›'; color:var(--muted); font-size:19px; line-height:1; transform:rotate(0); }
+.workspace-trends summary::before { content:'›'; color:var(--muted); font-size:24px; line-height:1; }
 .workspace-trends[open] summary::before { transform:rotate(90deg); }
-.workspace-trends summary h3 { font-size:14px; font-weight:600; }
-.workspace-trends summary span { color:var(--muted); font-size:11px; }
-.trend-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:10px 0 8px; }
-.trend-legend { display:flex; flex-wrap:wrap; gap:5px; }
-.trend-node { display:flex; align-items:center; gap:7px; border:1px solid transparent; border-radius:5px; background:transparent; color:var(--muted); padding:5px 9px; font:12px var(--mono); }
-.trend-node i { width:18px; height:2px; display:block; }
-.trend-node[aria-pressed="true"] { color:var(--ink); border-color:var(--line); background:var(--paper); }
-.trend-node[aria-pressed="true"] i { height:3px; }
+.workspace-trends summary h3 { font-size:23px; font-weight:600; letter-spacing:-.02em; }
+.workspace-trends summary span { color:var(--muted); font-size:13px; }
+.trend-toolbar { margin:22px 0 22px; }
+.trend-legend { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:14px; }
+.trend-node { display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:7px; text-align:left; border:1px solid var(--line); border-radius:7px; background:transparent; color:var(--ink); padding:13px 16px; transition:background-color .15s,border-color .15s; }
+.trend-node-heading { grid-column:1/3; display:flex; align-items:center; gap:9px; font-size:14px; font-weight:550; }
+.trend-node i { width:24px; height:3px; display:block; }
+.trend-reading { font-size:29px; font-weight:500; line-height:1.1; font-variant-numeric:tabular-nums; }
+.trend-node small { font-size:11px; color:var(--muted); }
+.trend-node:hover { background:var(--paper); }
+.trend-node[aria-pressed="true"] { background:var(--paper); border-color:var(--strong-line); box-shadow:inset 0 -3px 0 var(--strong-line); }
 .trend-node.is-muted { opacity:.45; }
-#trend-focus { background:var(--paper); color:var(--ink); border:1px solid var(--line); border-radius:5px; font-size:11px; padding:6px 9px; white-space:nowrap; }
-.workspace-trends .chart-label { color:var(--muted); font-size:11px; gap:12px; margin-bottom:6px; }
-.workspace-trends .trend-canvas { height:170px; }
-.trend-footer { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; }
-#trend-readout { color:var(--muted); font:10px var(--mono); }
-.trend-footer .chart-note { margin-top:4px; font-size:10px; }
-.spatial-workspace.is-expanded .workspace-trends { padding-top:8px; }
-.spatial-workspace.is-expanded .workspace-trends .trend-canvas { height:130px; }
+.trend-controls { display:flex; gap:8px; margin-left:auto; }
+.trend-controls button { background:transparent; color:var(--ink); border:1px solid var(--line); border-radius:6px; font-size:13px; padding:9px 13px; min-height:38px; white-space:nowrap; }
+.trend-controls button:hover,.trend-controls button[aria-pressed="true"] { background:var(--paper); border-color:var(--strong-line); }
+.workspace-trends .chart-label { color:var(--muted); font-size:13px; gap:16px; margin-bottom:13px; flex-wrap:wrap; }
+.workspace-trends .chart-unit { margin-left:0; font-size:12px; }
+.workspace-trends .trend-canvas { height:clamp(280px,26vh,360px); }
+.trend-footer { display:flex; justify-content:space-between; gap:14px; align-items:baseline; flex-wrap:wrap; margin-top:14px; }
+#trend-readout { color:var(--ink); font-size:15px; font-variant-numeric:tabular-nums; }
+#trend-window-note { color:var(--muted); font-size:12px; margin-right:auto; }
+.trend-footer .chart-note { margin-top:0; font-size:12px; }
+.inspection { padding-block:24px; }
+.inspection-trend #period-label { font-size:13px; }
+.spatial-workspace.is-expanded .workspace-trends { padding-block:14px 10px; }
+.spatial-workspace.is-expanded .workspace-trends .trend-canvas { height:clamp(180px,19vh,280px); }
+.spatial-workspace.is-expanded .trend-toolbar { margin-block:12px; }
+.spatial-workspace.is-expanded .trend-node { padding:9px 14px; }
+.spatial-workspace.is-expanded .trend-reading { font-size:25px; }
 @media (max-width:767px) {
-  .trend-toolbar { align-items:flex-start; gap:6px; }
-  .trend-node { padding:5px 6px; font-size:11px; }
-  .trend-node i { width:12px; }
-  .workspace-trends .trend-canvas { height:155px; }
-  .trend-footer { display:block; }
+  .workspace-trends { padding-top:20px; }
+  .workspace-trends summary { flex-wrap:wrap; gap:8px; }
+  .workspace-trends summary h3 { font-size:20px; }
+  .workspace-trends summary span { font-size:12px; }
+  .trend-legend { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+  .trend-node,.spatial-workspace.is-expanded .trend-node { padding:9px 10px; gap:5px; }
+  .trend-node-heading { font-size:12px; }
+  .trend-node i { width:17px; }
+  .trend-reading,.spatial-workspace.is-expanded .trend-reading { font-size:23px; }
+  .trend-node small { font-size:10px; }
+  .workspace-trends .chart-label { gap:9px; font-size:12px; }
+  .trend-controls { margin-left:0; }
+  .workspace-trends .chart-unit { margin-left:auto; }
+  .workspace-trends .trend-canvas { height:260px; }
+  .trend-footer { gap:8px; }
+  .trend-footer .chart-note { width:100%; font-size:11px; }
 }
 @media (max-height:700px) {
-  .spatial-workspace.is-expanded .workspace-trends .trend-canvas { height:90px; }
-  .spatial-workspace.is-expanded .trend-footer { display:none; }
+  .spatial-workspace.is-expanded .workspace-trends .trend-canvas { height:140px; }
+  .spatial-workspace.is-expanded .trend-footer .chart-note { display:none; }
 }
 /* Observation summary: actual results, comparison scope, and missing-data coverage. */
 .daily-summary { padding-block:64px 44px; }
