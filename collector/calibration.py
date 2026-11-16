@@ -6,7 +6,8 @@ import statistics
 import time
 import uuid
 
-NODES = ['N1', 'N2', 'N3', 'N4', 'N5', 'D1', 'D2']
+LEGACY_NODES = ['N1', 'N2', 'N3', 'N4', 'N5', 'D1', 'D2']
+NODES = ['N1', 'N2', 'N3', 'N5', 'D1', 'D2']
 
 
 def initialize(db):
@@ -18,6 +19,7 @@ def initialize(db):
       CREATE TABLE IF NOT EXISTS calibration_profiles (
         id TEXT PRIMARY KEY, run_id TEXT, effective_ms INTEGER, end_ms INTEGER,
         offsets TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS calibration_participants (run_id TEXT PRIMARY KEY,nodes_json TEXT NOT NULL);
     ''')
     db.commit()
 
@@ -53,13 +55,15 @@ class Calibration:
             return None
         keys = ['id','startMs','endMs','previousPlan','planVersion','exclusionGroup','cancelled','restored','report']
         result = dict(zip(keys,row))
+        participants=db.execute('SELECT nodes_json FROM calibration_participants WHERE run_id=?',(identifier or row[0],)).fetchone()
+        result['nodes']=json.loads(participants[0]) if participants else list(LEGACY_NODES)
         result['previousPlan'] = json.loads(result['previousPlan'])
         result['report'] = json.loads(result['report']) if result['report'] else None
         return result
 
     def samples(self, run):
         data = {}
-        for node in NODES:
+        for node in run['nodes']:
             buckets = {}
             rows = self.receiver.conn.execute('SELECT ts_ms,laeq FROM readings WHERE node=? AND ts_ms>=? AND ts_ms<? ORDER BY ts_ms', (node,run['startMs'],run['endMs']))
             for stamp, value in rows:
@@ -78,12 +82,12 @@ class Calibration:
             public = None
             if run:
                 data = self.samples(run)
-                public = {k:run[k] for k in ['id','startMs','endMs','planVersion','cancelled','restored','report']}
+                public = {k:run[k] for k in ['id','startMs','endMs','planVersion','cancelled','restored','report','nodes']}
                 public['applied'] = bool(self.receiver.conn.execute('SELECT 1 FROM calibration_profiles WHERE run_id=?',(run['id'],)).fetchone())
                 public['phase'] = 'cancelled' if run['cancelled'] else 'waiting' if now < run['startMs'] else 'recording' if now < run['endMs'] else 'uploading' if now < run['endMs']+45000 else 'finished'
-                public['counts'] = {node:len(data[node]) for node in NODES}
-                public['rawLevels'] = {node:round(data[node][max(data[node])],2) if data[node] else None for node in NODES}
-                public['commonSeconds'] = len(set.intersection(*(set(data[node]) for node in NODES)))
+                public['counts'] = {node:len(data[node]) for node in run['nodes']}
+                public['rawLevels'] = {node:round(data[node][max(data[node])],2) if data[node] else None for node in run['nodes']}
+                public['commonSeconds'] = len(set.intersection(*(set(data[node]) for node in run['nodes'])))
             return {'run':public,'active':active,'nodes':NODES,'method':'simultaneous-median-relative','minimumCommonSeconds':240}
 
     def start(self, plan_version):
@@ -98,7 +102,7 @@ class Calibration:
             ready = {r[0]:r for r in receiver.node_readiness(now)}
             missing = [node for node in NODES if node not in ready or not all(ready[node][1:5])]
             if missing:
-                raise ValueError('请先让全部七块板子在线、对时并检测到麦克风：'+', '.join(missing))
+                raise ValueError('请先让全部六块板子在线、对时并检测到麦克风：'+', '.join(missing))
             start = math.ceil(now+45)*1000
             end = start+300000
             identifier = str(uuid.uuid4())
@@ -111,6 +115,7 @@ class Calibration:
                 db.executemany('INSERT INTO exclusions(grp,node,start_ms,end_ms,reason,note,created) VALUES(?,?,?,?,?,?,?)',
                     [(group,node,start,end,'并排校准','校准 '+identifier+'；保留原始数据',now) for node in NODES])
                 db.execute('INSERT INTO calibration_runs(id,start_ms,end_ms,previous_plan,plan_version,exclusion_group) VALUES(?,?,?,?,?,?)',(identifier,start,end,json.dumps(list(plan)),version,group))
+                db.execute('INSERT INTO calibration_participants VALUES(?,?)',(identifier,json.dumps(NODES)))
             return self.state()
 
     def analyze(self, identifier, save=True):
@@ -121,11 +126,12 @@ class Calibration:
                 raise ValueError('找不到有效的校准任务。')
             if now < run['endMs']+45000:
                 raise ValueError('请等五分钟采集结束并等待45秒，让最后一批数据上传。')
+            participants=run['nodes']
             data = self.samples(run)
-            seconds = sorted(set.intersection(*(set(data[node]) for node in NODES)))
-            reference = {second:statistics.median(data[node][second] for node in NODES) for second in seconds}
+            seconds = sorted(set.intersection(*(set(data[node]) for node in participants)))
+            reference = {second:statistics.median(data[node][second] for node in participants) for second in seconds}
             results = []
-            for node in NODES:
+            for node in participants:
                 differences = [reference[second]-data[node][second] for second in seconds]
                 offset = statistics.median(differences) if differences else None
                 residual = [d-offset for d in differences] if differences else []
@@ -135,7 +141,7 @@ class Calibration:
                     'mad':round(statistics.median(abs(d) for d in residual),3) if residual else None})
             warnings = []
             if len(seconds)<240:
-                warnings.append('七块板子共同有效秒数不足240/300；此为本工具的完整性门槛，请补齐设备后重新采集。')
+                warnings.append(('七块' if len(participants)==7 else '六块')+'板子共同有效秒数不足240/300；此为本工具的完整性门槛，请补齐设备后重新采集。')
             if any(row['offset'] is not None and abs(row['offset'])>12 for row in results):
                 warnings.append('存在超过12 dB的偏移，请优先检查硬件、麦克风朝向和程序参数。')
             if any(row['mad'] is not None and row['mad']>2 for row in results):
@@ -144,7 +150,7 @@ class Calibration:
                 'canApply':len(seconds)>=240,'method':'共同秒级中位数 / 相对LAeq修正','results':results,'warnings':warnings,
                 'note':'同一次五分钟记录回算，不是独立验证或绝对声级校准。修正仅用于LAeq，不修正倍频程频带。'}
             # Include the exact common observations so late data invalidates old approvals.
-            digest=json.dumps([report,[[second,[data[n][second] for n in NODES]] for second in seconds]],sort_keys=True,separators=(',',':'))
+            digest=json.dumps([report,[[second,[data[n][second] for n in participants]] for second in seconds]],sort_keys=True,separators=(',',':'))
             report['fingerprint']=hashlib.sha256(digest.encode()).hexdigest()
             if save:
                 self.receiver.conn.execute('UPDATE calibration_runs SET report=? WHERE id=?',(json.dumps(report,ensure_ascii=False),identifier))

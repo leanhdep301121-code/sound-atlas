@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex,nofollow"><title>数据采集 · 声场 SOUND ATLAS</title>
 <script src="collect-theme.js"></script>
-<link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="collect.css"><script type="module" src="collect.js?v=auto-follow-2"></script>
+<link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="collect.css"><script type="module" src="collect.js?v=six-devices"></script>
 </head><body>
 <a class="skip-link" href="#collector-main">跳到采集管理</a>
 <header class="topbar">
@@ -12,9 +12,9 @@
   <div class="nav-actions"><button class="theme-button" type="button" id="collector-theme">明暗</button><button class="button button-outline" type="button" id="logout" hidden>退出管理</button></div>
 </header>
 <main class="collector-shell" id="collector-main">
-  <header class="collector-header"><div><span class="eyebrow">SOUND ATLAS / COLLECT</span><h1>数据采集</h1><p>七个测点，一屏查看声级、连接与采集进度。</p></div><a class="view-link" href="../">查看声环境图 <span aria-hidden="true">↗</span></a></header>
+  <header class="collector-header"><div><span class="eyebrow">SOUND ATLAS / COLLECT</span><h1>数据采集</h1><p>六个测点，一屏查看声级、连接与采集进度。</p></div><a class="view-link" href="../">查看声环境图 <span aria-hidden="true">↗</span></a></header>
   <section class="login-panel" id="login-panel" aria-labelledby="login-heading">
-    <div class="login-copy"><span class="small-label">管理入口</span><h2 id="login-heading">连接你的观测。</h2><p>登录后查看设备、安排采集，并管理公桌、工位与宿舍 N4的观测记录。</p><p class="login-note">展示页面可直接分享，采集操作仅向管理者开放。</p></div>
+    <div class="login-copy"><span class="small-label">管理入口</span><h2 id="login-heading">连接你的观测。</h2><p>登录后查看设备、安排采集，并管理公桌与个人工位的观测记录。</p><p class="login-note">展示页面可直接分享，采集操作仅向管理者开放。</p></div>
     <form id="login-form"><label for="admin-key">管理口令</label><input id="admin-key" type="password" autocomplete="current-password" required maxlength="256" placeholder="输入管理口令"><p class="field-note">口令保存在采集电脑的管理访问文件中。</p><button class="button button-primary" type="submit" id="login-button">进入采集管理 <span aria-hidden="true">↗</span></button><p id="login-status" role="status">正在检查登录状态…</p></form>
   </section>
   <div id="admin-app" hidden>
@@ -23,9 +23,9 @@
     <p class="operation-status" id="operation-status" role="status" hidden></p>
     <section id="panel-overview" class="collector-panel" aria-labelledby="overview-heading">
       <div class="section-title"><div><h2 id="overview-heading">实时声级</h2><p>最新 1 秒声级 · 近 5 分钟走势</p></div><div class="monitor-timing"><span class="live-indicator" aria-hidden="true"></span><strong id="monitor-refresh">自动更新</strong><span id="monitor-clock">—</span></div></div>
-      <div class="metric-strip"><div><span>在线测点</span><strong id="online-count">—</strong></div><div><span>新鲜读数</span><strong id="fresh-count">—</strong></div><div><span>有效记录 · 七测点</span><strong id="usable-count">—</strong></div><div><span>当前计划</span><strong id="plan-metric">—</strong></div></div>
+      <div class="metric-strip"><div><span>在线测点</span><strong id="online-count">—</strong></div><div><span>新鲜读数</span><strong id="fresh-count">—</strong></div><div><span>有效记录 · 六测点</span><strong id="usable-count">—</strong></div><div><span>当前计划</span><strong id="plan-metric">—</strong></div></div>
       <div id="monitor-alert" class="monitor-alert" role="status" hidden></div>
-      <div class="monitor-grid" id="station-monitor" aria-label="七个测点实时声级"></div>
+      <div class="monitor-grid" id="station-monitor" aria-label="六个测点实时声级"></div>
       <div class="monitor-explainer"><span>页面每 1 秒检查 · 接收端约 1 秒同步 · 设备约 30 秒批量上传</span><span>曲线为 5 秒声能平均；断线留空，不补造数据。</span></div>
       <details class="station-details"><summary>设备详情与累计记录</summary>
       <div class="table-scroll"><table class="station-table"><thead><tr><th scope="col">测点 / 设备</th><th scope="col">位置</th><th scope="col">连接与就绪</th><th scope="col">观测记录</th><th scope="col">最近通信</th></tr></thead><tbody id="station-rows"></tbody></table></div>
@@ -33,7 +33,7 @@
       <p class="section-footnote">采集电脑需保持开机联网。数据先保存在本机，展示站自动读取声级摘要。</p>
     </section>
     <section id="panel-plan" class="collector-panel" aria-labelledby="plan-heading" hidden>
-      <div class="section-title"><div><h2 id="plan-heading">让七个测点同时开始。</h2><p>所有采集时间均按北京时间填写与执行。</p></div><span class="status-tag" id="plan-state">—</span></div>
+      <div class="section-title"><div><h2 id="plan-heading">让六个测点同时开始。</h2><p>所有采集时间均按北京时间填写与执行。</p></div><span class="status-tag" id="plan-state">—</span></div>
       <p class="small-label">当前生效计划</p><div class="plan-summary"><div><span>开始</span><strong id="current-start">—</strong></div><span class="plan-arrow" aria-hidden="true">→</span><div><span>结束</span><strong id="current-end">—</strong></div></div>
       <div class="plan-mode-options" role="group" aria-label="选择采集方式"><button type="button" data-plan-mode="continuous" aria-pressed="true"><strong>持续采集</strong><span>不填时间，直到手动停止</span></button><button type="button" data-plan-mode="scheduled" aria-pressed="false"><strong>定时采集</strong><span>指定开始或结束时间</span></button></div>
       <p class="field-note">选择方式后，点击下方按钮生效；上方显示当前采集计划。</p>
@@ -46,22 +46,22 @@
       <div class="readiness-area"><h3>设备准备情况</h3><div class="readiness-list" id="readiness-list"></div><p class="field-note">开始前请确认麦克风、对时和计划接收正常。操作会等待采集端确认，不会仅在网页上显示为已完成。</p></div>
     </section>
     <section id="panel-calibration" class="collector-panel" aria-labelledby="calibration-heading" hidden>
-      <div class="section-title"><div><h2 id="calibration-heading">七块板子，同场对齐。</h2><p>五分钟并排记录 · 共同中位数相对校准 · 不改变原始数据</p></div><span class="status-tag" id="calibration-phase">尚未开始</span></div>
-      <div class="calibration-guide"><h3>先摆放，再开始</h3><p>将七块板子的麦克风尽量靠近、保持同高同向，不要互相遮挡。使用持续、稳定的声音，避免敲击、手持摩擦和某一块附近的说话声。全过程保持摆放位置不变。</p><p>必须全部在线、已对时且麦克风正常。点击开始后预留约 45 秒，然后统一采集 300 秒；结束后再等 45 秒上传。正常采集计划会暂时替换，完成后需点击“恢复原计划”。</p></div>
-      <div class="calibration-progress"><div><span>当前阶段</span><strong id="calibration-countdown">准备设备</strong><p id="calibration-period">尚未安排五分钟采集</p></div><div><span>七块共同有效秒数</span><strong id="calibration-common">0 / 300</strong><p>至少 240 秒才允许应用；这是本工具的完整性门槛。</p></div></div>
+      <div class="section-title"><div><h2 id="calibration-heading">六块板子，同场对齐。</h2><p>五分钟并排记录 · 共同中位数相对校准 · 不改变原始数据</p></div><span class="status-tag" id="calibration-phase">尚未开始</span></div>
+      <div class="calibration-guide"><h3>先摆放，再开始</h3><p>将六块板子的麦克风尽量靠近、保持同高同向，不要互相遮挡。使用持续、稳定的声音，避免敲击、手持摩擦和某一块附近的说话声。全过程保持摆放位置不变。</p><p>必须全部在线、已对时且麦克风正常。点击开始后预留约 45 秒，然后统一采集 300 秒；结束后再等 45 秒上传。正常采集计划会暂时替换，完成后需点击“恢复原计划”。</p></div>
+      <div class="calibration-progress"><div><span>当前阶段</span><strong id="calibration-countdown">准备设备</strong><p id="calibration-period">尚未安排五分钟采集</p></div><div><span>本次参与设备共同有效秒数</span><strong id="calibration-common">0 / 300</strong><p>至少 240 秒才允许应用；这是本工具的完整性门槛。</p></div></div>
       <div class="table-scroll"><table class="station-table calibration-table"><thead><tr><th>测点</th><th>准备情况</th><th>本次有效秒数</th><th>本次最近原始 LAeq</th></tr></thead><tbody id="calibration-devices"></tbody></table></div>
       <div class="calibration-actions"><button type="button" class="button button-primary" id="calibration-start">准备好了，记录五分钟</button><button type="button" class="button button-outline" id="calibration-analyze" disabled>计算相对修正</button><button type="button" class="text-button" id="calibration-cancel" disabled>取消并恢复原计划</button><button type="button" class="button button-outline" id="calibration-restore" disabled>恢复原采集计划</button></div>
-      <section id="calibration-results" class="calibration-results" hidden><h3>检查修正结果</h3><p>每个共同有效秒先求七块板子的中位数；每块的修正量为“共同中位数 − 本板原始值”的五分钟中位数。修正后 LAeq = 原始 LAeq + 修正量。</p><div id="calibration-warnings" class="monitor-alert" hidden></div><div class="table-scroll"><table class="station-table"><thead><tr><th>设备</th><th>修正量 dB</th><th>修正前偏差 RMSE</th><th>回算后偏差 RMSE</th><th>残差 MAD</th></tr></thead><tbody id="calibration-report-rows"></tbody></table></div><p class="field-note">偏差是相对七板共同中位数的偏差。本次五分钟内的回算不是独立验证，也不能证明绝对声级准确；只修正 LAeq，不修正倍频程频带。</p><div class="calibration-actions"><button type="button" class="button button-primary" id="calibration-apply" disabled>应用到之后的新观测</button><button type="button" class="button button-outline" id="calibration-download">下载校准报告</button></div></section>
+      <section id="calibration-results" class="calibration-results" hidden><h3>检查修正结果</h3><p>每个共同有效秒先求本次参与设备的中位数；每块的修正量为“共同中位数 − 本板原始值”的五分钟中位数。修正后 LAeq = 原始 LAeq + 修正量。</p><div id="calibration-warnings" class="monitor-alert" hidden></div><div class="table-scroll"><table class="station-table"><thead><tr><th>设备</th><th>修正量 dB</th><th>修正前偏差 RMSE</th><th>回算后偏差 RMSE</th><th>残差 MAD</th></tr></thead><tbody id="calibration-report-rows"></tbody></table></div><p class="field-note">偏差是相对参与设备共同中位数的偏差。历史校准保留当时的参与设备，已应用参数不会重算。本次五分钟内的回算不是独立验证，也不能证明绝对声级准确；只修正 LAeq，不修正倍频程频带。</p><div class="calibration-actions"><button type="button" class="button button-primary" id="calibration-apply" disabled>应用到之后的新观测</button><button type="button" class="button button-outline" id="calibration-download">下载校准报告</button></div></section>
       <div class="calibration-active"><h3>正在使用的修正</h3><p id="calibration-active-copy">尚未应用相对修正。</p><button type="button" class="text-button" id="calibration-disable" disabled>停用之后的修正</button><p class="field-note">实时面板和声场图按样本时间使用修正；数据管理曲线与原始导出保留原始读数。校正 CSV 另列原始值、修正值、偏移量和版本。</p></div>
     </section>
     <section id="panel-manage" class="collector-panel" aria-labelledby="manage-heading" hidden>
       <div class="section-title manage-heading"><div><h2 id="manage-heading">查看、整理与导出</h2><p>先选范围，再看曲线。右侧始终显示操作将影响的记录。</p></div><span class="status-tag">北京时间 UTC+8</span></div>
       <div class="data-follow-bar"><button type="button" id="data-follow" aria-pressed="true">自动跟随最新</button><span id="data-follow-status" role="status">新记录到达后自动更新曲线与条数。</span></div>
       <section class="manage-filter" aria-labelledby="filter-heading">
-        <div class="filter-title"><h3 id="filter-heading"><span class="step-number">1</span>筛选观测</h3><span id="filter-node-count">已选 7 个测点</span></div>
+        <div class="filter-title"><h3 id="filter-heading"><span class="step-number">1</span>筛选观测</h3><span id="filter-node-count">已选 6 个测点</span></div>
         <div class="filter-quick" role="group" aria-label="快速选择时段"><button type="button" data-range="hour">最近 1 小时</button><button type="button" data-range="today">今天</button><button type="button" data-range="plan" title="选中后持续自动更新，无需反复点击">当前计划</button><button type="button" data-range="all">全部记录</button></div>
         <form class="data-filters" id="data-filter-form"><div><label for="range-start">查询开始 · 北京时间</label><input id="range-start" type="datetime-local" step="1" required></div><div><label for="range-end">查询结束 · 北京时间</label><input id="range-end" type="datetime-local" step="1" required></div><button class="button button-primary" id="apply-filter" type="submit" data-command>应用筛选</button></form>
-        <fieldset class="node-filters"><legend>选择测点</legend><div class="node-presets"><button type="button" data-node-choice="all">全选七测点</button><button type="button" data-node-choice="personal">只看个人工位</button><button type="button" data-node-choice="none">清空</button></div><div id="data-nodes"></div><details id="other-node-details" hidden><summary>其他设备记录</summary><div id="other-data-nodes"></div></details></fieldset>
+        <fieldset class="node-filters"><legend>选择测点</legend><div class="node-presets"><button type="button" data-node-choice="all">全选六测点</button><button type="button" data-node-choice="personal">只看个人工位</button><button type="button" data-node-choice="none">清空</button></div><div id="data-nodes"></div><details id="other-node-details" hidden><summary>其他设备记录</summary><div id="other-data-nodes"></div></details></fieldset>
         <p id="query-state" class="query-state" role="status">选择范围后点击“应用筛选”。</p>
       </section>
       <div class="manage-workspace">

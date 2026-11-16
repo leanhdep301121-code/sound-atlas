@@ -41,17 +41,35 @@ class CalibrationTests(unittest.TestCase):
     def test_common_median_offsets_and_versioned_future_only_correction(self):
         run=self.populate();report=self.cal.analyze(run['id'])
         self.assertEqual(report['commonSeconds'],300)
-        self.assertEqual([row['offset'] for row in report['results']],[3,2,1,0,-1,-2,-3])
+        self.assertEqual([row['offset'] for row in report['results']],[2.5,1.5,.5,-.5,-1.5,-2.5])
         self.assertTrue(all(row['afterRmse']==0 for row in report['results']))
         before=list(self.receiver.conn.execute('SELECT node,ts_ms,laeq FROM readings ORDER BY node,ts_ms'))
         self.cal.apply(run['id'],report['fingerprint']);items=profiles(self.receiver.conn)
         self.assertEqual(correction(items,'N1',run['startMs'])[0],0)
-        self.assertEqual(correction(items,'N1',int(self.now*1000))[0],3)
+        self.assertEqual(correction(items,'N1',int(self.now*1000))[0],2.5)
         self.now+=20;self.cal.disable();items=profiles(self.receiver.conn)
-        self.assertEqual(correction(items,'N1',int((self.now-10)*1000))[0],3)
+        self.assertEqual(correction(items,'N1',int((self.now-10)*1000))[0],2.5)
         self.assertEqual(correction(items,'N1',int(self.now*1000))[0],0)
         self.assertEqual(before,list(self.receiver.conn.execute('SELECT node,ts_ms,laeq FROM readings ORDER BY node,ts_ms')))
         self.cal.restore(run['id']);self.assertEqual(self.receiver.get_plan()[1:],self.original[1:])
+
+    def test_retired_device_does_not_change_an_existing_seven_device_calibration(self):
+        run=self.populate()
+        self.receiver.conn.execute('DELETE FROM calibration_participants WHERE run_id=?',(run['id'],))
+        for second in range(300):
+            self.receiver.conn.execute('INSERT INTO readings(node,ts_ms,laeq,lafmax) VALUES(?,?,?,?)',('N4',run['startMs']+second*1000,53+math.sin(second/15),54))
+        self.receiver.conn.commit()
+        report=self.cal.analyze(run['id'])
+        self.assertEqual(len(report['results']),7)
+        self.assertIn('N4',[row['node'] for row in report['results']])
+        self.cal.apply(run['id'],report['fingerprint'])
+        before=profiles(self.receiver.conn)
+        restored=Calibration(self.receiver,clock=lambda:self.now)
+        self.assertEqual(restored.run(run['id'])['report']['fingerprint'],report['fingerprint'])
+        self.assertEqual(restored.analyze(run['id'],save=False)['fingerprint'],report['fingerprint'])
+        self.assertEqual(profiles(self.receiver.conn),before)
+        self.assertNotIn('N4',restored.state()['nodes'])
+        self.assertIn('N4',restored.state()['run']['nodes'])
 
     def test_missing_common_seconds_and_changed_approval_are_rejected(self):
         run=self.populate(missing=70);report=self.cal.analyze(run['id'])
@@ -65,7 +83,7 @@ class CalibrationTests(unittest.TestCase):
         self.receiver.conn.execute("UPDATE nodes SET last_seen=? WHERE node='D2'",(self.now,));self.receiver.conn.commit()
         run=self.cal.start(self.original[0])['run']
         with self.assertRaisesRegex(ValueError,'上传'):self.cal.analyze(run['id'])
-        self.assertEqual(self.receiver.conn.execute('SELECT COUNT(*) FROM exclusions').fetchone()[0],7)
+        self.assertEqual(self.receiver.conn.execute('SELECT COUNT(*) FROM exclusions').fetchone()[0],6)
         self.cal.restore(run['id'],cancel=True)
         self.assertEqual(self.receiver.get_plan()[1:],self.original[1:])
         self.assertEqual(self.receiver.conn.execute('SELECT COUNT(*) FROM exclusions').fetchone()[0],0)

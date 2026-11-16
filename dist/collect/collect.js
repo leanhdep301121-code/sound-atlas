@@ -10,7 +10,6 @@ const TABLES = [
   {node:'N5',name:'N5',marker:'N5',place:'左上 · 邻近卫生间'},
   {node:'D1',name:'D1',marker:'D1',place:'右上 · 邻近会议室'},
   {node:'D2',name:'个人工位',marker:'D2',place:'N1 右侧 · 东墙最南端'},
-  {node:'N4',name:'宿舍 N4',marker:'N4',place:'宿舍 · 独立观测，不参与二层热力'},
 ];
 const names = Object.fromEntries(TABLES.map(table => [table.node,table.name]));
 const num = value => Number(value || 0).toLocaleString('zh-CN');
@@ -97,7 +96,7 @@ function renderMonitor() {
     const recent=item.history.length>0;
     const last=Number.isFinite(obs.laeq)?obs.laeq.toFixed(1)+' dB(A)':'—';
     return `<article class="monitor-station" data-tone="${item.tone}" aria-label="${table.name}实时监测">
-      <header><div class="monitor-name"><span class="station-marker">${table.marker}</span><div><h3>${table.name}</h3><span>${table.node}${table.node==='N4'?' · 宿舍':table.node==='D2'?' · 个人工位':' · 声级节点'}</span></div></div><span class="monitor-status">${item.status}</span></header>
+      <header><div class="monitor-name"><span class="station-marker">${table.marker}</span><div><h3>${table.name}</h3><span>${table.node}${table.node==='D2'?' · 个人工位':' · 声级节点'}</span></div></div><span class="monitor-status">${item.status}</span></header>
       <p class="monitor-place">${table.place}</p>
       <div class="monitor-reading"><strong>${item.value===null?'—':item.value.toFixed(1)}</strong><div><span>dB(A)</span><small>${obs.correctionDb?'相对校正 · 1 秒 LAeq':'最新 1 秒 LAeq'}</small></div></div>
       <p class="sample-age">${Number.isFinite(item.age)?'数据 '+ageLabel(item.age)+(item.fresh?'':' · 上次 '+last):'等待第一条有效观测'}</p>
@@ -291,18 +290,18 @@ function renderCalibration(){
   $('calibration-restore').disabled=busy||!state?.connected||!run||run.restored||!['finished','uploading'].includes(phase);
   $('calibration-results').hidden=!report;
   if(report){
-    $('calibration-report-rows').innerHTML=report.results.map(row=>`<tr><td>${esc(names[row.node]||row.node)}<small>${row.node}</small></td><td><strong>${Number.isFinite(row.offset)?(row.offset>=0?'+':'')+row.offset.toFixed(3):'—'}</strong></td><td>${row.beforeRmse?.toFixed(2)??'—'}</td><td>${row.afterRmse?.toFixed(2)??'—'}</td><td>${row.mad?.toFixed(2)??'—'}</td></tr>`).join('');
+    $('calibration-report-rows').innerHTML=report.results.filter(row=>names[row.node]).map(row=>`<tr><td>${esc(names[row.node]||row.node)}<small>${row.node}</small></td><td><strong>${Number.isFinite(row.offset)?(row.offset>=0?'+':'')+row.offset.toFixed(3):'—'}</strong></td><td>${row.beforeRmse?.toFixed(2)??'—'}</td><td>${row.afterRmse?.toFixed(2)??'—'}</td><td>${row.mad?.toFixed(2)??'—'}</td></tr>`).join('');
     $('calibration-warnings').hidden=!report.warnings?.length;$('calibration-warnings').textContent=(report.warnings||[]).join(' ');
   }
   $('calibration-apply').disabled=busy||!state?.connected||!report?.canApply||Boolean(run?.applied);
-  $('calibration-active-copy').textContent=active?'自 '+formatBeijing(active.start,true)+' 起，相对修正：'+Object.entries(active.offsets||{}).map(([node,value])=>node+' '+(value>=0?'+':'')+value.toFixed(3)+' dB').join('；'):'尚未启用新的相对修正。历史记录仍按当时的版本保留。';
+  $('calibration-active-copy').textContent=active?'自 '+formatBeijing(active.start,true)+' 起，相对修正：'+Object.entries(active.offsets||{}).filter(([node])=>names[node]).map(([node,value])=>node+' '+(value>=0?'+':'')+value.toFixed(3)+' dB').join('；'):'尚未启用新的相对修正。历史记录仍按当时的版本保留。';
   $('calibration-disable').disabled=busy||!state?.connected||!active;
 }
 async function calibrationAction(operation){
   try{
     if(busy)return;requireOnline();const run=state?.calibration?.run,report=run?.report;
     const descriptions={
-      start:['开始七板五分钟相对校准？','请确认七块麦克风已并排、同高同向，且保持不动。约45秒后统一开始，采集300秒。当前采集计划会暂时替换；本时段自动标记为校准并从日常分析中排除，原始记录保留。完成后请点击“恢复原采集计划”。'],
+      start:['开始六板五分钟相对校准？','请确认六块麦克风已并排、同高同向，且保持不动。约45秒后统一开始，采集300秒。当前采集计划会暂时替换；本时段自动标记为校准并从日常分析中排除，原始记录保留。完成后请点击“恢复原采集计划”。'],
       apply:['应用相对修正？','只对应用之后的新观测LAeq生效。原始值不修改，倍频程数据不修正。此结果不能证明绝对声级准确。\n'+(report?.results||[]).map(r=>r.node+'：'+(r.offset>=0?'+':'')+r.offset?.toFixed(3)+' dB').join('；')+'\n'+(report?.warnings||[]).join('\n')],
       restore:['恢复原采集计划？','恢复启动校准前的开始/结束时间。板子放回各自位置后，按原计划继续记录。'],
       cancel:['取消校准并恢复原计划？','保留已收到的原始记录，已进行的校准片段仍单独标记。'],

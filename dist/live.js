@@ -2,7 +2,7 @@
 
 // Public snapshots contain only acoustic measurement summaries. Device addresses and controls stay on the collector.
 const SoundAtlasLive = (() => {
-  const ids = ['A', 'B', 'C', 'D', 'E', 'D1', 'D2'];
+  const ids = ['A', 'B', 'C', 'D', 'E', 'D1'];
   const periodFormatter = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
@@ -77,7 +77,7 @@ const SoundAtlasLive = (() => {
 
   function connectionState(snapshot, requestFailed = false, now = Date.now()) {
     if (requestFailed) return { status: 'error', label: '连接中断', detail: '正在自动重连，历史记录仍可查看。', fresh: false };
-    if (!snapshot) return { status: 'connecting', label: '连接采集端', detail: '正在读取公桌、工位与宿舍的观测。', fresh: false };
+    if (!snapshot) return { status: 'connecting', label: '连接采集端', detail: '正在读取公桌与个人工位的观测。', fresh: false };
     const age = Math.max(...[snapshot.generatedAt, snapshot.receivedAt].map(value => value ? now - Date.parse(value) : Infinity));
     if (!snapshot.connected || age > 120000) {
       return { status: 'offline', label: snapshot.receivedAt ? '采集端离线' : '等待采集端', detail: '暂未收到新的观测，历史记录可沿时间轴查看。', fresh: false };

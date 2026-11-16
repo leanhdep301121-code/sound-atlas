@@ -49,8 +49,8 @@ class SnapshotTests(unittest.TestCase):
         self.add("D2", self.now - 1, 46, online=True)
         self.add("OLD", self.now - 1, 100, online=True)
         snapshot = self.builder.build(self.now)
-        self.assertEqual(snapshot["latest"]["sound"], {"C": 40, "B": 41, "A": 42, "E": 43, "D": 44, "D1": 48, "D2": 46})
-        self.assertEqual([n["id"] for n in snapshot["nodes"]], ["A", "B", "C", "D", "E", "D1", "D2"])
+        self.assertEqual(snapshot["latest"]["sound"], {"C": 40, "B": 41, "A": 42, "E": 43, "D": 44, "D1": 48})
+        self.assertEqual([n["id"] for n in snapshot["nodes"]], ["A", "B", "C", "D", "E", "D1"])
         payload = json.dumps(snapshot)
         self.assertNotIn("private-address", payload)
         self.assertNotIn("OLD", payload)
@@ -108,8 +108,8 @@ class SnapshotTests(unittest.TestCase):
         self.db.commit()
         snapshot=self.builder.build(self.now)
         self.assertEqual(snapshot['latest']['sound']['D1'],70.82)
-        self.assertEqual(snapshot['latest']['sound']['D2'],60.22)
-        for public_id,levels in [('D1',[40.22,70.82]),('D2',[50.82,60.22])]:
+        self.assertNotIn('D2',snapshot['latest']['sound'])
+        for public_id,levels in [('D1',[40.22,70.82])]:
             frames=[f for d in snapshot['days'] for f in d['frames'] if public_id in f['sound']]
             count=sum(f['counts'][public_id] for f in frames)
             mean=10*math.log10(sum(10**(f['sound'][public_id]/10)*f['counts'][public_id] for f in frames)/count)

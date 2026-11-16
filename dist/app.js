@@ -57,7 +57,6 @@ function fillOptions(select, options) {
 }
 fillOptions(byId('trend-table'), OBSERVATION_NODES.map(node => [node.name, node.id]));
 
-byId('dorm-select').addEventListener('click',()=>{selectNode('D2');announce();});
 const comparisonButtons = new Map();
 for (const node of nodes) {
   const button = document.createElement('button');
@@ -224,8 +223,6 @@ function render() {
     row.button.setAttribute('aria-pressed', state.highlighted && node.id === selected.id);
     row.reading.textContent = value;
   }
-  byId('dorm-reading').textContent=labelValue(OBSERVATION_NODES.find(node=>node.id==='D2'),frame);
-  byId('dorm-select').setAttribute('aria-pressed',String(state.highlighted && state.table==='D2'));
   byId('trend-table').value = state.table;
   byId('chart-table-name').textContent = OBSERVATION_NODES.find(node => node.id === state.table).name;
   if (mapView === 'plan') drawPlan(frame);

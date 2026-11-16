@@ -273,7 +273,7 @@ class RemoteControlTests(unittest.TestCase):
         empty=next(n for n in telemetry['nodes'] if n['node']=='N1')
         self.assertIsNone(empty['laeq'])
         self.assertEqual(empty['history'],[])
-        self.assertEqual(len(telemetry['nodes']),7)
+        self.assertEqual(len(telemetry['nodes']),6)
 
     def test_corrected_export_keeps_original_and_versions_columns(self):
         import csv,io

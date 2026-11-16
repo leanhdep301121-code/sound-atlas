@@ -27,6 +27,7 @@ DAY_MS = 24 * 60 * 60 * 1000
 ONLINE_SECONDS = 75
 # Confirmed by the user's physical device labels, not the ordering of TABLES.
 NODE_MAP = CURRENT_LOCATIONS
+ACTIVE_LOCATION_IDS = frozenset({"A", "B", "C", "D", "E", "D1"})
 
 
 def iso_time(seconds: float | None) -> str | None:
@@ -101,6 +102,8 @@ class SnapshotBuilder:
         if not _valid_level(level):
             return
         public_id = location_at(node, stamp)[0]
+        if public_id not in ACTIVE_LOCATION_IDS:
+            return
         key = (stamp // SLOT_MS, public_id)
         energy, count = self._buckets.get(key, (0.0, 0))
         self._buckets[key] = (energy + 10 ** (level / 10), count + 1)
@@ -184,6 +187,8 @@ class SnapshotBuilder:
                     nodes = []
                     for raw_id in NODE_MAP:
                         public_id, label = location_at(raw_id, now_ms)
+                        if public_id not in ACTIVE_LOCATION_IDS:
+                            continue
                         last_seen = node_rows.get(raw_id)
                         good_seen = isinstance(last_seen, (int, float)) and math.isfinite(last_seen)
                         online = good_seen and -5 <= now - last_seen <= self.online_seconds
