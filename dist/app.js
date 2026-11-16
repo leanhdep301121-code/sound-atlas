@@ -235,18 +235,32 @@ function render() {
 }
 
 function drawMiniCharts(frames, selected) {
-  const values = frames.map(frame => frame.sound[selected.id]);
   const spark = byId('node-spark');
-  const key=[frames,selected.id,spark.clientWidth,spark.clientHeight,byId('timeline-wave').clientWidth,colors('accent'),colors('strong-line')];
-  if(miniChartKey&&key.every((value,index)=>value===miniChartKey[index]))return;
-  miniChartKey=key;
+  const wave = byId('timeline-wave');
   const width = spark.clientWidth;
   const height = spark.clientHeight;
-  if (width < 1) return;
-  const ctx = prepareCanvas(spark, width, height);
+  const waveWidth = wave.clientWidth;
+  const key = [frames, selected.id, width, height, waveWidth, colors('accent'), colors('strong-line')];
+  if (miniChartKey && key.every((value, index) => value === miniChartKey[index])) return;
+  miniChartKey = key;
+  const values = frames.map(frame => frame.sound[selected.id]);
   const present = values.filter(value => value != null);
-  const low = Math.min(...present);
-  const high = Math.max(low + 1, ...present);
+  const low = present.length ? Math.min(...present) : 0;
+  const high = present.length ? Math.max(low + 1, ...present) : 1;
+
+  // The inspection sparkline is hidden in fullscreen; the timeline must still redraw.
+  if (waveWidth > 0) {
+    const waveCtx = prepareCanvas(wave, waveWidth, 40);
+    waveCtx.fillStyle = colors('strong-line');
+    values.forEach((value, slot) => {
+      if (value == null) return;
+      const barHeight = 3 + (value - low) / (high - low) * 30;
+      waveCtx.fillRect(slot / SLOTS * waveWidth, 37 - barHeight, Math.max(.5, waveWidth / SLOTS), barHeight);
+    });
+  }
+  spark.setAttribute('aria-label', selected.name + '当日变化，' + present.length + '个时段有记录');
+  if (width < 1 || height < 1) return;
+  const ctx = prepareCanvas(spark, width, height);
   ctx.strokeStyle = colors('accent');
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -260,16 +274,6 @@ function drawMiniCharts(frames, selected) {
     connected = true;
   });
   ctx.stroke();
-  spark.setAttribute('aria-label', selected.name + '当日变化，' + present.length + '个时段有记录');
-  const wave = byId('timeline-wave');
-  const waveWidth = wave.clientWidth;
-  const waveCtx = prepareCanvas(wave, waveWidth, 40);
-  waveCtx.fillStyle = colors('strong-line');
-  values.forEach((value, slot) => {
-    if (value == null) return;
-    const barHeight = 3 + (value - low) / (high - low) * 30;
-    waveCtx.fillRect(slot / SLOTS * waveWidth, 37 - barHeight, Math.max(.5, waveWidth / SLOTS), barHeight);
-  });
 }
 
 function chartArea(canvas) {
@@ -730,3 +734,4 @@ const mapResizeObserver = new ResizeObserver(() => {
 mapResizeObserver.observe(mapViewport);
 const chartResizeObserver = new ResizeObserver(() => render());
 chartResizeObserver.observe(byId('sound-chart'));
+chartResizeObserver.observe(byId('timeline-wave'));
