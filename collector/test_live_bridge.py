@@ -25,7 +25,7 @@ class SnapshotTests(unittest.TestCase):
             INSERT INTO settings VALUES(1,0,0,0);
             CREATE TABLE exclusions(id INTEGER PRIMARY KEY,node TEXT,start_ms INTEGER,end_ms INTEGER,reason TEXT);
         """)
-        self.now = datetime(2026, 11, 14, 10, 15, tzinfo=BJ).timestamp()
+        self.now = datetime(2026, 11, 14, 10, 15, 10, tzinfo=BJ).timestamp()
         self.builder = SnapshotBuilder(self.path)
 
     def tearDown(self):
@@ -39,8 +39,21 @@ class SnapshotTests(unittest.TestCase):
             self.db.execute("INSERT OR REPLACE INTO nodes VALUES(?,?,?)", (node, self.now, "private-address"))
         self.db.commit()
 
-    def frame(self, snapshot, day="2026-11-14", slot=20):
+    def frame(self, snapshot, day="2026-11-14", slot=615):
         return next(d for d in snapshot["days"] if d["label"] == day)["frames"][slot]
+
+    def test_minute_buckets_preserve_peaks_and_empty_gaps(self):
+        boundary = int(self.now // 60) * 60
+        self.add("N3", boundary - 2, 40)
+        self.add("N3", boundary - 1, 60)
+        self.add("N3", boundary, 70)
+        snapshot = self.builder.build(self.now)
+        self.assertEqual(snapshot["slotMinutes"], 1)
+        self.assertEqual(len(snapshot["days"][0]["frames"]), 1440)
+        self.assertAlmostEqual(self.frame(snapshot, slot=614)["sound"]["A"],
+                               10 * math.log10((10**4 + 10**6) / 2), places=3)
+        self.assertEqual(self.frame(snapshot, slot=615)["sound"]["A"], 70)
+        self.assertEqual(self.frame(snapshot, slot=616)["sound"], {})
 
     def test_confirmed_physical_mapping_and_minimal_payload(self):
         for index, node in enumerate(["N1", "N2", "N3", "N4", "N5"]):
@@ -152,7 +165,7 @@ class SnapshotTests(unittest.TestCase):
         self.builder.build(self.now)
         self.add("N3", self.now - 3600, 60)
         snapshot = self.builder.build(self.now + 10)
-        self.assertEqual(self.frame(snapshot, slot=18)["sound"]["A"], 60)
+        self.assertEqual(self.frame(snapshot, slot=555)["sound"]["A"], 60)
         self.assertEqual(self.frame(snapshot)["counts"]["A"], 1)
         self.assertEqual(self.builder.build(self.now + 20)["days"], snapshot["days"])
 
@@ -207,7 +220,7 @@ class SnapshotTests(unittest.TestCase):
         self.add("N1", midnight - 1, 51)
         self.add("N1", midnight, 52)
         snapshot = self.builder.build(self.now)
-        self.assertEqual(self.frame(snapshot, "2026-11-13", 47)["sound"]["C"], 51)
+        self.assertEqual(self.frame(snapshot, "2026-11-13", 1439)["sound"]["C"], 51)
         self.assertEqual(self.frame(snapshot, "2026-11-14", 0)["sound"]["C"], 52)
         with self.assertRaises(sqlite3.OperationalError):
             self.builder._conn.execute("DELETE FROM readings")

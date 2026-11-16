@@ -22,7 +22,7 @@ from pathlib import Path
 
 
 BJ = timezone(timedelta(hours=8))
-SLOT_MS = 30 * 60 * 1000
+SLOT_MS = 60 * 1000
 DAY_MS = 24 * 60 * 60 * 1000
 ONLINE_SECONDS = 75
 # Confirmed by the user's physical device labels, not the ordering of TABLES.
@@ -227,7 +227,7 @@ class SnapshotBuilder:
                 raise
 
             def blank_day(label):
-                return {"label": label, "frames": [{"sound": {}, "counts": {}} for _ in range(48)]}
+                return {"label": label, "frames": [{"sound": {}, "counts": {}} for _ in range(1440)]}
 
             days = {today_label: blank_day(today_label)}
             for (bucket, public_id), (energy, count) in self._buckets.items():
@@ -235,12 +235,15 @@ class SnapshotBuilder:
                     continue
                 moment = datetime.fromtimestamp(bucket * SLOT_MS / 1000, BJ)
                 label = moment.date().isoformat()
-                day = days.setdefault(label, blank_day(label))
-                frame = day["frames"][moment.hour * 2 + moment.minute // 30]
+                if label not in days:
+                    days[label] = blank_day(label)
+                day = days[label]
+                frame = day["frames"][moment.hour * 60 + moment.minute]
                 frame["sound"][public_id] = round(10 * math.log10(energy / count), 3)
                 frame["counts"][public_id] = count
             return {
                 "version": 1,
+                "slotMinutes": 1,
                 "generatedAt": iso_time(now),
                 "plan": {"state": plan_status(start_ms, end_ms, now_ms), "startMs": start_ms, "endMs": end_ms},
                 "nodes": nodes,

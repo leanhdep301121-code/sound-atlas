@@ -19,11 +19,11 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const settle = async () => { for (let i = 0; i < 8; i += 1) await Promise.resolve(); };
 
 test('current period is always Beijing time and no-data startup is empty', () => {
-  assert.deepEqual(plain(live.periodAt(now)), { label: '2026-11-14', slot: 29 });
+  assert.deepEqual(plain(live.periodAt(now)), { label: '2026-11-14', slot: 876 });
   const source = live.selectPeriod(null, {}, now);
-  assert.equal(source.slot, 29);
+  assert.equal(source.slot, 876);
   assert.equal(source.days.length, 1);
-  assert.equal(source.days[0].frames.length, 48);
+  assert.equal(source.days[0].frames.length, 1440);
   assert.deepEqual(plain(source.days[0].frames[29].sound), {});
 });
 
@@ -32,7 +32,7 @@ test('historical data never becomes the current live half-hour', () => {
   const source = live.selectPeriod(live.normalizeSnapshot(old), {}, now);
   assert.equal(source.days[source.day].label, '2026-11-14');
   assert.deepEqual(plain(source.days[source.day].frames[source.slot].sound), {});
-  assert.equal(source.days[0].frames[29].sound.A, 52.3);
+  assert.equal(source.days[0].frames[870].sound.A, 52.3);
 });
 
 test('poll refresh preserves a historical selection and clears removed readings', () => {

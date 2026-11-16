@@ -15,11 +15,11 @@ function fixture(reduced=false){
   return {run:code=>vm.runInContext(code,context),pending,tick:now=>{time=now;const jobs=[...pending.values()];pending.clear();jobs.forEach(fn=>fn(now));}};
 }
 
-test('continuous cursor keeps statistics in the actual half-hour window',()=>{
+test('continuous cursor keeps statistics in the actual minute window',()=>{
   const {run}=fixture();
-  assert.equal(run('SoundAtlasMotion.timelineAt(29.75).slot'),29);
-  assert.equal(run('SoundAtlasMotion.timelineAt(29.75).label'),'14:52');
-  assert.equal(run('SoundAtlasMotion.timelineAt(99).position'),47);
+  assert.equal(run('SoundAtlasMotion.timelineAt(894.75).slot'),894);
+  assert.equal(run('SoundAtlasMotion.timelineAt(894.75).label'),'14:54');
+  assert.equal(run('SoundAtlasMotion.timelineAt(9999).position'),1439);
   assert.equal(run('SoundAtlasMotion.timelineAt(-1).slot'),0);
 });
 test('many input events render only the newest state once per animation frame',()=>{

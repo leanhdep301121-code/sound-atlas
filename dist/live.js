@@ -7,12 +7,12 @@ const SoundAtlasLive = (() => {
     timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   });
-  const blankFrames = () => Array.from({ length: 48 }, () => ({ sound: {}, counts: {} }));
+  const blankFrames = () => Array.from({ length: 1440 }, () => ({ sound: {}, counts: {} }));
 
   function periodAt(time = Date.now()) {
     const [label, clock] = periodFormatter.format(new Date(time)).split(' ');
     const [hour, minute] = clock.split(':').map(Number);
-    return { label, slot: hour * 2 + Math.floor(minute / 30) };
+    return { label, slot: hour * 60 + minute };
   }
 
   function timestamp(value) {
@@ -30,9 +30,11 @@ const SoundAtlasLive = (() => {
     if (!value || value.version !== 1 || typeof value.connected !== 'boolean' || !Array.isArray(value.days)) {
       throw new Error('实时数据格式暂时不可用。');
     }
+    const slotMinutes = value.slotMinutes ?? 30;
+    if (![1, 30].includes(slotMinutes)) throw new Error('不支持的观测时间间隔。');
     const days = new Map();
     for (const day of value.days.slice(-31)) {
-      if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day.label) || !Array.isArray(day.frames) || day.frames.length !== 48) {
+      if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day.label) || !Array.isArray(day.frames) || day.frames.length !== 1440 / slotMinutes) {
         throw new Error('实时数据的观测日期或时段不完整。');
       }
       const validDate = new Date(day.label + 'T00:00:00Z');
@@ -53,7 +55,7 @@ const SoundAtlasLive = (() => {
       return { id, status: ['online', 'offline'].includes(node?.status) ? node.status : 'unknown', lastSeen: timestamp(node?.lastSeen) };
     });
     return {
-      connected: value.connected, correctionApplied:value.correctionApplied===true,
+      slotMinutes, connected: value.connected, correctionApplied:value.correctionApplied===true,
       generatedAt: timestamp(value.generatedAt),
       receivedAt: timestamp(value.receivedAt),
       latestAt: timestamp(value.latest?.timestamp),
@@ -66,8 +68,13 @@ const SoundAtlasLive = (() => {
   function selectPeriod(snapshot, selection = {}, now = Date.now()) {
     const current = periodAt(now);
     const label = selection.follow !== false ? current.label : selection.label || current.label;
-    const slot = selection.follow !== false ? current.slot : Math.max(0, Math.min(47, selection.slot ?? current.slot));
-    const days = new Map((snapshot?.days ?? []).map(day => [day.label, day]));
+    const slot = selection.follow !== false ? current.slot : Math.max(0, Math.min(1439, selection.slot ?? current.slot));
+    // Legacy half-hour snapshots remain explicitly labelled; never call them minute observations.
+    const days = new Map((snapshot?.days ?? []).map(day => [day.label,
+      snapshot.slotMinutes === 1 ? day : { label: day.label, frames: Array.from({length:1440}, (_, minute) => ({
+        ...day.frames[Math.floor(minute / 30)], periodMinutes:30,
+      })) },
+    ]));
     if (!days.has(current.label)) days.set(current.label, { label: current.label, frames: blankFrames() });
     // Preserve the user's chosen date without retaining readings removed by a later collector snapshot.
     if (!days.has(label)) days.set(label, { label, frames: blankFrames() });

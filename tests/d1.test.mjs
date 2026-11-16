@@ -29,7 +29,7 @@ test('D1 remains empty when absent and contributes to energy interpolation when 
   assert.equal(run('heatmapLevel(600,350,heatmapSamples({sound:{D1:48}}))'), null);
   assert.equal(run('heatmapLevel(TABLES[5].x,TABLES[5].y,heatmapSamples({sound:{A:60,D1:48}}))'), 48);
   assert.equal(run('createDemo().every(day=>day.frames.every(frame=>Number.isFinite(frame.sound.D1)))'), true);
-  assert.equal(run('parseObservation(CSV_TEMPLATE).days[0].frames[29].sound.D1'), 48.6);
+  assert.equal(run('parseObservation(CSV_TEMPLATE).days[0].frames[870].sound.D1'), 48.6);
 });
 
 test('six-node ingest and public live parsing preserve D1 without changing table mappings', () => {

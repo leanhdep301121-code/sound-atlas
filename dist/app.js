@@ -178,7 +178,7 @@ function returnToLive() {
 function updateTimelineDisplay(){
   const cursor=SoundAtlasMotion.timelineAt(timelinePosition??state.slot);
   byId('time-slider').value=String(cursor.position);
-  byId('time-slider').setAttribute('aria-valuetext',cursor.label+'，显示 '+clockLabel(state.slot)+' 开始的半小时观测');
+  byId('time-slider').setAttribute('aria-valuetext',cursor.label+'，显示 '+clockLabel(state.slot)+' 开始的观测');
   byId('time-output').textContent=cursor.label;
 }
 
@@ -191,7 +191,9 @@ function render() {
   byId('day').value = String(state.day);
   updateTimelineDisplay();
 
-  byId('period-label').textContent = clockLabel(state.slot) + ' 至 ' + (state.slot === 47 ? '24:00' : clockLabel(state.slot + 1));
+  const periodMinutes = frame.periodMinutes || 1;
+  const periodStart = Math.floor(state.slot / periodMinutes) * periodMinutes;
+  byId('period-label').textContent = clockLabel(periodStart) + ' 至 ' + clockLabel(periodStart + periodMinutes);
   byId('layer-sound').setAttribute('aria-pressed', state.layer === 'sound');
   byId('layer-heatmap').setAttribute('aria-pressed', state.layer === 'heatmap');
   byId('inspection-heading').textContent = selected.name;
@@ -200,7 +202,7 @@ function render() {
   byId('node-id').textContent = '当前设备 ' + (selected.device || selected.id) + ' · 历史读数按当时位置回放';
   byId('node-value').textContent = sound?.toFixed(1) ?? '-';
   byId('node-unit').textContent = 'dB(A)';
-  byId('node-metric').textContent = state.mode === 'live' && followLive ? '当前半小时累计等效声级' : '半小时等效 A 计权声级';
+  byId('node-metric').textContent = (periodMinutes === 30 ? '半小时' : '1 分钟') + (state.mode === 'live' && followLive ? '累计等效 A 计权声级' : '等效 A 计权声级');
   const selectedHealth = liveSnapshot?.nodes.find(node => node.id === selected.id);
   byId('node-detail').textContent = sound == null ? '这一时段暂无有效观测。'
     : state.mode === 'live' && followLive && (!connection.fresh || selectedHealth?.status !== 'online')
@@ -266,7 +268,7 @@ function drawMiniCharts(frames, selected) {
   values.forEach((value, slot) => {
     if (value == null) return;
     const barHeight = 3 + (value - low) / (high - low) * 30;
-    waveCtx.fillRect(slot / SLOTS * waveWidth, 37 - barHeight, Math.max(2, waveWidth / SLOTS - 3), barHeight);
+    waveCtx.fillRect(slot / SLOTS * waveWidth, 37 - barHeight, Math.max(.5, waveWidth / SLOTS), barHeight);
   });
 }
 
@@ -308,7 +310,7 @@ function drawChart(canvas, values) {
   }
   ctx.fillStyle = colors('muted');
   ctx.textAlign = 'center';
-  for (const slot of [0, 12, 24, 36, 47]) ctx.fillText(clockLabel(slot), x(slot), bottom + 13);
+  for (const slot of [0, 360, 720, 1080, 1439]) ctx.fillText(clockLabel(slot), x(slot), bottom + 13);
   ctx.strokeStyle = accent;
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -354,7 +356,7 @@ function setPlayback(playing) {
     const tick=now=>{
       if(playback===null)return;
       if(document.hidden){setPlayback(false);return;}
-      if(last!==null)position+=Math.min(100,now-last)/550;
+      if(last!==null)position+=Math.min(100,now-last)/240;
       last=now;
       let dayChanged=false;
       if(position>=SLOTS){

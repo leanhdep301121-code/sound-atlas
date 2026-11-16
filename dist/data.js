@@ -75,12 +75,12 @@ const TABLES = [
 ];
 // Only the six active second-floor locations are displayed.
 const OBSERVATION_NODES = TABLES;
-const SLOTS = 48;
-const INITIAL_SLOT = 29;
+const SLOTS = 1440;
+const INITIAL_SLOT = 870;
 const weekday = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
 function clockLabel(slot) {
-  return String(Math.floor(slot / 2)).padStart(2, '0') + (slot % 2 ? ':30' : ':00');
+  return String(Math.floor(slot / 60)).padStart(2, '0') + ':' + String(slot % 60).padStart(2, '0');
 }
 
 function createDemo() {
@@ -89,10 +89,10 @@ function createDemo() {
   return weekday.map((label, day) => ({
     label,
     frames: Array.from({ length: SLOTS }, (_, slot) => {
-      const hour = slot / 2;
+      const hour = slot / 60;
       const activity = (day >= 5 ? .57 : 1) * (12 * peak(hour, 10.5, 3) + 18 * peak(hour, 15, 3) + 7 * peak(hour, 19, 2.4));
       const sound = Object.fromEntries(OBSERVATION_NODES.map(({ id }, index) => {
-        const wave = Math.sin(slot * .7 + index * 1.3 + day) * 1.7;
+        const wave = Math.sin(slot / 30 * .7 + index * 1.3 + day) * 1.7;
         const discussion = (index === 0 ? 8 : index === 2 ? 7 : 2) * peak(hour, 14.8 + index * .65, 1.18);
         return [id, rounded(32.8 + index * .8 + activity * [1, .82, .92, .61, .73, .68, .55][index] + discussion + wave)];
       }));
@@ -167,7 +167,7 @@ function parseObservation(csv) {
     }
     const [label, time] = observationTime.format(date).split(' ');
     const [hour, minute] = time.split(':').map(Number);
-    const slot = hour * 2 + Math.floor(minute / 30);
+    const slot = hour * 60 + minute;
     const duplicateKey = id + ':' + +date;
     if (seen.has(duplicateKey)) bad('同一测点的时间戳重复。');
     seen.add(duplicateKey);
@@ -176,11 +176,11 @@ function parseObservation(csv) {
     const level = Number(get('laeq'));
     const duration = get('duration_s') ? Number(get('duration_s')) : 10;
     if (!get('laeq') || !Number.isFinite(level) || level < 0 || level > 160) bad('声级需为 0 至 160 的数值。');
-    if (!Number.isFinite(duration) || duration <= 0 || duration > 1800) bad('声级采样时长需大于 0，且最多 1800 秒。');
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 60) bad('声级采样时长需大于 0，且最多 60 秒（分钟回放需使用一分钟以内的原始观测）。');
     frame.sound[id] ??= { energy: 0, duration: 0 };
     frame.sound[id].energy += Math.pow(10, level / 10) * duration;
     frame.sound[id].duration += duration;
-    if (frame.sound[id].duration > 1800) bad('该测点半小时内的采样时长超过 1800 秒。');
+    if (frame.sound[id].duration > 60) bad('该测点一分钟内的采样时长超过 60 秒。');
     if (!earliest || +date < earliest.stamp) earliest = { label, slot, stamp: +date, id };
   });
   if (!earliest) throw new Error('文件中没有声级记录。请加入 A 至 E 或 D1 测点的观测记录后重试。');
