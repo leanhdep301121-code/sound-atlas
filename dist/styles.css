@@ -486,3 +486,34 @@ dialog input[type="file"] { display: block; padding: 13px; width: 100%; backgrou
   .coverage-details { grid-column:1/3; margin-top:2px; }
   .summary-peaks button { grid-template-columns:minmax(95px,1fr) 32px auto auto 14px; gap:8px; }
 }
+/* Chart fullscreen has its own generous layout, independent of map fullscreen. */
+.trend-large-dialog { inset:0; width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; padding:clamp(20px,3vh,40px) clamp(20px,4vw,72px); border:0; border-radius:0; background:var(--surface); color:var(--ink); overflow:auto; }
+.trend-large-dialog[open] { display:flex; flex-direction:column; gap:0; }
+.trend-fullscreen-header { display:flex; justify-content:space-between; align-items:center; gap:24px; width:100%; max-width:2000px; margin:0 auto; padding-bottom:20px; flex-shrink:0; }
+.trend-fullscreen-header h2 { font-size:clamp(25px,2.3vw,36px); font-weight:550; letter-spacing:-.03em; }
+.trend-fullscreen-header p { font-size:13px; color:var(--muted); margin-top:7px; }
+.trend-fullscreen-header > button { min-height:44px; padding:9px 18px; white-space:nowrap; }
+.trend-fullscreen-body { display:flex; flex-direction:column; flex:1; min-height:400px; width:100%; max-width:2000px; margin:0 auto; padding:20px 0 16px; }
+.trend-fullscreen-body .trend-toolbar { margin:0 0 24px; flex-shrink:0; }
+.trend-fullscreen-body .trend-legend { gap:clamp(12px,1.6vw,30px); }
+.trend-fullscreen-body .trend-node { padding:16px 20px; gap:12px; }
+.trend-fullscreen-body .trend-node-heading { font-size:16px; }
+.trend-fullscreen-body .trend-reading { font-size:clamp(30px,2.8vw,44px); }
+.trend-fullscreen-body .chart-label { font-size:14px; margin-bottom:16px; flex-shrink:0; }
+.trend-fullscreen-body .trend-canvas { flex:1; height:0; min-height:250px; }
+.trend-fullscreen-body .trend-footer { margin-top:18px; flex-shrink:0; }
+.trend-large-dialog #trend-fullscreen { display:none; }
+.trend-large-dialog > .timeline { width:100%; max-width:2000px; margin:0 auto; padding-block:18px 0; flex-shrink:0; }
+@media(max-width:767px) {
+  .trend-large-dialog { padding:16px; }
+  .trend-fullscreen-header { align-items:flex-start; gap:12px; padding-bottom:15px; }
+  .trend-fullscreen-header p { font-size:12px; max-width:30ch; }
+  .trend-fullscreen-header > button { min-height:38px; padding:7px 10px; font-size:12px; }
+  .trend-fullscreen-body { padding-top:14px; min-height:480px; }
+  .trend-fullscreen-body .trend-toolbar { margin-bottom:16px; }
+  .trend-fullscreen-body .trend-node { padding:10px 12px; gap:6px; }
+  .trend-fullscreen-body .trend-node-heading { font-size:13px; }
+  .trend-fullscreen-body .trend-reading { font-size:26px; }
+  .trend-large-dialog > .timeline { grid-template-columns:110px minmax(0,1fr); gap:12px; }
+  .trend-large-dialog .timeline-caption { display:none; }
+}

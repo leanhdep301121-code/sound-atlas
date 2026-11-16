@@ -1,0 +1,15 @@
+{
+  "source": "2F4F平面图_t3.dwg, original line indices 37838 and 37839",
+  "location": "Laboratory southeast return",
+  "cadBoundsMm": [
+    82949.48,
+    133589.26,
+    83157.02,
+    135287.37
+  ],
+  "wallHeightM": 3.2,
+  "heightSource": "Existing visualization height assumption; source is 2D CAD",
+  "addedVertices": 24,
+  "addedTriangles": 12,
+  "nativeSourceUpdated": true
+}

@@ -807,6 +807,47 @@ largeMapDialog.addEventListener('close', () => {
   byId('map-fullscreen').setAttribute('aria-pressed', 'false');
   byId('map-fullscreen').focus({ preventScroll: true });
 });
+// A separate chart dialog leaves map fullscreen dedicated to the spatial view.
+const trendPanel = byId('trends');
+const trendTimeline = workspace.querySelector('.timeline');
+const trendTimelineAnchor = document.createComment('Trend timeline home');
+trendTimeline.before(trendTimelineAnchor);
+const trendDialog = document.createElement('dialog');
+trendDialog.className = 'trend-large-dialog';
+trendDialog.setAttribute('aria-labelledby', 'trend-fullscreen-title');
+const trendDialogHeader = document.createElement('header');
+trendDialogHeader.className = 'trend-fullscreen-header';
+const trendDialogHeading = document.createElement('div');
+const trendDialogTitle = document.createElement('h2');
+trendDialogTitle.id = 'trend-fullscreen-title'; trendDialogTitle.textContent = '声级趋势对比';
+const trendDialogHint = document.createElement('p');
+trendDialogHint.textContent = '选择测点查看变化；点按曲线定位时间，与地图保持联动。';
+trendDialogHeading.append(trendDialogTitle, trendDialogHint);
+const closeTrendDialog = document.createElement('button');
+closeTrendDialog.type = 'button'; closeTrendDialog.className = 'button button-outline'; closeTrendDialog.textContent = '退出曲线全屏';
+closeTrendDialog.addEventListener('click', () => trendDialog.close());
+trendDialogHeader.append(trendDialogHeading, closeTrendDialog);
+const trendDialogBody = document.createElement('section');
+trendDialogBody.className = 'workspace-trends trend-fullscreen-body';
+trendDialogBody.setAttribute('aria-label', '全屏趋势曲线');
+trendDialog.append(trendDialogHeader, trendDialogBody);
+document.body.append(trendDialog);
+let movedTrendChildren = [];
+byId('trend-fullscreen').addEventListener('click', () => {
+  if (trendDialog.open) return;
+  movedTrendChildren = [...trendPanel.children].filter(element => element.tagName !== 'SUMMARY');
+  trendDialogBody.append(...movedTrendChildren);
+  trendDialog.append(trendTimeline);
+  trendDialog.showModal();
+  timelineRender.request();
+});
+trendDialog.addEventListener('close', () => {
+  trendPanel.append(...movedTrendChildren); movedTrendChildren = [];
+  trendTimelineAnchor.after(trendTimeline);
+  byId('trend-fullscreen').focus({preventScroll:true});
+  timelineRender.request();
+});
+
 byId('theme-toggle').addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;

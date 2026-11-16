@@ -9,10 +9,10 @@ try {
   document.documentElement.dataset.theme = localStorage.getItem('sound-atlas-theme') === 'dark' ? 'dark' : 'light';
 } catch { document.documentElement.dataset.theme = 'light'; }
 </script>
-<link rel="stylesheet" href="styles.css?v=fullscreen-map">
+<link rel="stylesheet" href="styles.css?v=trend-fullscreen">
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
 <link rel="modulepreload" href="spatial-view.js?v=mesh-binary">
-<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=fast-live" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js?v=fast-live" defer></script><script src="trends.js?v=readable-trends" defer></script><script src="summary.js" defer></script><script src="app.js?v=fast-live" defer></script>
+<script src="data.js?v=minute-playback" defer></script><script src="live.js?v=fast-live" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js?v=fast-live" defer></script><script src="trends.js?v=readable-trends" defer></script><script src="summary.js" defer></script><script src="app.js?v=trend-fullscreen" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#observatory">跳到声环境图</a>
@@ -90,7 +90,7 @@ try {
     <details class="workspace-trends" id="trends" open>
       <summary><h3 id="trend-heading">趋势曲线</h3><span>六个测点对比 · 分钟统计</span></summary>
       <div class="trend-toolbar"><div class="trend-legend" id="trend-legend" role="group" aria-label="选择趋势测点"></div></div>
-      <div class="chart-label"><span id="chart-table-name">N3</span><span id="trend-date"></span><div class="trend-controls"><button type="button" id="trend-range" aria-pressed="false">查看全天</button><button type="button" id="trend-focus" aria-pressed="false">只看所选</button></div><span class="chart-unit">声级 / dB(A)</span></div>
+      <div class="chart-label"><span id="chart-table-name">N3</span><span id="trend-date"></span><div class="trend-controls"><button type="button" id="trend-fullscreen" aria-haspopup="dialog">全屏查看曲线</button><button type="button" id="trend-range" aria-pressed="false">查看全天</button><button type="button" id="trend-focus" aria-pressed="false">只看所选</button></div><span class="chart-unit">声级 / dB(A)</span></div>
       <canvas id="sound-chart" class="trend-canvas" role="img" tabindex="0" aria-label="六个测点当日声级趋势" aria-describedby="trend-help"></canvas>
       <div class="trend-footer"><output id="trend-readout">等待观测</output><span id="trend-window-note">聚焦有数据的时段</span><p class="chart-note" id="trend-help">点按曲线定位时间；方向键逐分钟查看。缺测时段留空。</p></div>
     </details>
