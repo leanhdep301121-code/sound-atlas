@@ -118,7 +118,7 @@ function labelValue(node, frame) {
 function announce() {
   const node = OBSERVATION_NODES.find(point => point.id === state.table);
   byId('change-announcement').textContent = state.days[state.day].label + ' ' + clockLabel(state.slot) + '，' +
-    node.name + '，' + labelValue(node, state.days[state.day].frames[state.slot]);
+    node.name + '，' + labelValue(node, displayedFrame());
 }
 
 function renderSourceStatus() {
@@ -182,9 +182,15 @@ function updateTimelineDisplay(){
   byId('time-output').textContent=cursor.label;
 }
 
+function displayedFrame() {
+  return state.mode === 'live' && followLive && liveSnapshot?.realtimeAvailable
+    ? SoundAtlasLive.currentFrame(liveSnapshot) : state.days[state.day].frames[state.slot];
+}
+
 function render() {
   const date = state.days[state.day];
-  const frame = date.frames[state.slot];
+  const realtime = state.mode === 'live' && followLive && liveSnapshot?.realtimeAvailable;
+  const frame = displayedFrame();
   const selected = OBSERVATION_NODES.find(node => node.id === state.table);
   const sound = frame.sound[selected.id];
   const connection = renderSourceStatus();
@@ -193,25 +199,27 @@ function render() {
 
   const periodMinutes = frame.periodMinutes || 1;
   const periodStart = Math.floor(state.slot / periodMinutes) * periodMinutes;
-  byId('period-label').textContent = clockLabel(periodStart) + ' 至 ' + clockLabel(periodStart + periodMinutes);
+  const sampleStamp = frame.timestamps?.[selected.id];
+  const sampleClock = sampleStamp ? new Intl.DateTimeFormat('zh-CN', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(sampleStamp)) : null;
+  byId('period-label').textContent = realtime ? sampleClock ? '采样于 ' + sampleClock : '等待新的观测' : clockLabel(periodStart) + ' 至 ' + clockLabel(periodStart + periodMinutes);
   byId('inspection-heading').textContent = selected.name;
   byId('node-marker').textContent = selected.marker;
   byId('node-location').textContent = selected.location;
   byId('node-id').textContent = '当前设备 ' + (selected.device || selected.id) + ' · 历史读数按当时位置回放';
   byId('node-value').textContent = sound?.toFixed(1) ?? '-';
   byId('node-unit').textContent = 'dB(A)';
-  byId('node-metric').textContent = (periodMinutes === 30 ? '半小时' : '1 分钟') + (state.mode === 'live' && followLive ? '累计等效 A 计权声级' : '等效 A 计权声级');
+  byId('node-metric').textContent = realtime ? '最新 1 秒等效 A 计权声级' : (periodMinutes === 30 ? '半小时' : '1 分钟') + (state.mode === 'live' && followLive ? '累计等效 A 计权声级' : '等效 A 计权声级');
   const selectedHealth = liveSnapshot?.nodes.find(node => node.id === selected.id);
-  byId('node-detail').textContent = sound == null ? '这一时段暂无有效观测。'
-    : state.mode === 'live' && followLive && (!connection.fresh || selectedHealth?.status !== 'online')
-      ? '当前显示已保存观测，测点暂未在线。'
+  byId('node-detail').textContent = realtime
+    ? sampleStamp ? '约 ' + Math.max(0, Math.round((Date.now()-Date.parse(sampleStamp))/1000)) + ' 秒前采样 · 随设备上传更新' : '暂未收到有效的新读数。历史记录可沿时间轴查看。'
+    : sound == null ? '这一时段暂无有效观测。'
       : state.mode === 'live' && frame.counts?.[selected.id] ? frame.counts[selected.id].toLocaleString('zh-CN') + ' 个有效样本' : '';
-  byId('comparison-heading').textContent = '同一时段的测点';
+  byId('comparison-heading').textContent = realtime ? '各测点最新读数' : '同一时段的测点';
   const measured = TABLES.filter(node => node.kind !== 'personal' && frame.sound[node.id] != null);
   const lowest = measured.reduce((quietest, node) =>
     !quietest || frame.sound[node.id] < frame.sound[quietest.id] ? node : quietest, null);
   byId('inspection-foot').textContent = measured.length > 1
-    ? '当前时段 ' + lowest.name + ' 的声级最低，选位前请确认现场有无空位。' : '可比较的公桌读数不足。';
+    ? (realtime ? '各测点采样时间可能不同；最新读数中 ' : '当前时段 ') + lowest.name + ' 的声级最低，选位前请确认现场有无空位。' : '可比较的公桌读数不足。';
   for (const node of nodes) {
     const mapButton = mapButtons.get(node.id);
     const value = labelValue(node, frame);
@@ -469,8 +477,9 @@ function setSource(source, mode) {
 
 byId('heatmap-opacity').addEventListener('input', event => {
   byId('heatmap-opacity-value').textContent = event.target.value + '%';
-  drawHeatmap(state.days[state.day].frames[state.slot]);
-  updateSpatialView(state.days[state.day].frames[state.slot], state.table);
+  const frame = displayedFrame();
+  drawHeatmap(frame);
+  updateSpatialView(frame, state.table);
 });
 byId('trend-range').addEventListener('click', () => {
   trendFullDay = !trendFullDay;

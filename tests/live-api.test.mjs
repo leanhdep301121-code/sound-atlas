@@ -46,3 +46,12 @@ test('unauthorized ingestion cannot reach storage', async () => {
     assert.equal(response.status,401);
   } finally { if(previous===undefined)delete process.env.SOUND_ATLAS_INGEST_TOKEN;else process.env.SOUND_ATLAS_INGEST_TOKEN=previous; }
 });
+
+test('history revision ignores latest sample updates but changes when stored minute observations change',()=>{
+ const input=fixture();input.latest.samplePeriodSeconds=1;input.latest.timestamps={C:new Date(now-2000).toISOString()};
+ const first=normalizeSnapshot(input,now);input.latest.sound.C=70;
+ const second=normalizeSnapshot(input,now);assert.equal(first.historyRevision,second.historyRevision);
+ assert.equal(second.latest.timestamps.C,input.latest.timestamps.C);assert.equal(second.latest.samplePeriodSeconds,1);
+ input.days[0].frames[40].counts.C++;
+ assert.notEqual(normalizeSnapshot(input,now).historyRevision,first.historyRevision);
+});

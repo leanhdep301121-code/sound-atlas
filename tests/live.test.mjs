@@ -75,7 +75,7 @@ function harness(fetcher) {
     set(hidden) { this.hidden = hidden; this.listener?.(); },
   };
   const data = [], errors = [];
-  const poller = live.createPoller({ fetcher, visibility,
+  const poller = live.createPoller({ fetcher, visibility, clock:()=>0,
     onSnapshot: value => data.push(value), onError: error => errors.push(error),
     schedule(callback, delay) { const key = ++id; timers.set(key, { callback, delay }); return key; },
     cancel(key) { timers.delete(key); },
@@ -85,16 +85,16 @@ function harness(fetcher) {
   };
 }
 
-test('success polls every 10 seconds; failures back off and recovery restores cadence', async () => {
+test('success polls every 2 seconds; failures back off and recovery restores cadence', async () => {
   let fail = true;
   const h = harness(async () => { if (fail) throw new Error('offline'); return { ok: true, json: async () => payload() }; });
   h.poller.start(); await settle();
   assert.equal(h.errors.length, 1);
-  await h.run(20000);
+  await h.run(4000);
   assert.equal(h.errors.length, 2);
-  fail = false; await h.run(40000);
+  fail = false; await h.run(8000);
   assert.equal(h.data.length, 1);
-  assert.ok([...h.timers.values()].some(timer => timer.delay === 10000));
+  assert.ok([...h.timers.values()].some(timer => timer.delay === 2000));
   h.poller.dispose(); assert.equal(h.timers.size, 0);
 });
 
@@ -123,6 +123,23 @@ test('timeout becomes a retryable error rather than an endless loading state', a
   }));
   h.poller.start(); await h.run(12000);
   assert.equal(h.errors.length, 1);
-  assert.ok([...h.timers.values()].some(timer => timer.delay === 20000));
+  assert.ok([...h.timers.values()].some(timer => timer.delay === 4000));
   h.poller.dispose();
+});
+
+test('live map uses timestamped one-second samples and never modifies minute history',()=>{
+ const input=payload();input.latest.samplePeriodSeconds=1;input.latest.timestamps={A:new Date(now-5000).toISOString(),C:new Date(now-80000).toISOString()};input.latest.sound={A:70,C:80};
+ input.nodes.push({id:'C',status:'online',lastSeen:new Date(now).toISOString()});
+ const snapshot=live.normalizeSnapshot(input),frame=live.currentFrame(snapshot,now);
+ assert.deepEqual(plain(frame.sound),{A:70});assert.equal(snapshot.days[0].frames[29].sound.A,52.3);
+ assert.deepEqual(plain(live.currentFrame(snapshot,now+76000).sound),{});
+ assert.deepEqual(plain(live.currentFrame({...snapshot,connected:false},now).sound),{});
+});
+test('unchanged history responses reuse frames and lightweight polling keeps historical selection data',async()=>{
+ const requests=[];let number=0;
+ const first={...payload(),historyRevision:'history-a'};
+ const h=harness(async url=>{requests.push(url);number++;return {ok:true,json:async()=>number===1?first:{...first,days:undefined,historyUnchanged:true,latest:{timestamp:new Date(now).toISOString(),samplePeriodSeconds:1,sound:{A:75},timestamps:{A:new Date(now).toISOString()}}}};});
+ h.poller.start();await settle();await h.run(2000);
+ assert.match(requests[1],/history=history-a/);assert.equal(h.data[0].days,h.data[1].days);assert.equal(h.data[1].latestSound.A,75);assert.equal(h.data[1].days[0].frames[29].sound.A,52.3);
+ h.poller.dispose();
 });

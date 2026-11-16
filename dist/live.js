@@ -59,6 +59,10 @@ const SoundAtlasLive = (() => {
       generatedAt: timestamp(value.generatedAt),
       receivedAt: timestamp(value.receivedAt),
       latestAt: timestamp(value.latest?.timestamp),
+      latestSound: soundValues(value.latest?.sound),
+      latestTimes: Object.fromEntries(ids.filter(id => timestamp(value.latest?.timestamps?.[id])).map(id => [id, timestamp(value.latest.timestamps[id])])),
+      realtimeAvailable: value.latest?.samplePeriodSeconds === 1,
+      historyRevision: typeof value.historyRevision === 'string' ? value.historyRevision : null,
       days: [...days.values()].sort((a, b) => a.label.localeCompare(b.label)),
       nodes,
       plan: { state: ['none', 'waiting', 'recording', 'finished'].includes(value.plan?.state) ? value.plan.state : 'none' },
@@ -94,13 +98,14 @@ const SoundAtlasLive = (() => {
     if (snapshot.plan.state === 'waiting') return { status: 'waiting', label: '等待采集开始', detail: online + ' / ' + ids.length + ' 个测点在线 · 按计划统一开始', fresh: true };
     if (snapshot.plan.state === 'none') return { status: 'waiting', label: '等待采集计划', detail: online + ' / ' + ids.length + ' 个测点在线 · 暂未开始记录', fresh: true };
     if (snapshot.plan.state === 'finished') return { status: 'idle', label: '采集已结束', detail: '历史观测可沿时间轴回放。', fresh: true };
-    return { status: 'online', label: '实时同步', detail: online + ' / ' + ids.length + ' 个测点在线 · 每 10 秒更新', fresh: true };
+    return { status: 'online', label: '实时同步', detail: online + ' / ' + ids.length + ' 个测点在线 · 约每 2 秒检查新数据', fresh: true };
   }
 
   function createPoller({ url = 'api/live', onSnapshot, onError, fetcher = fetch,
     visibility = typeof document === 'undefined' ? null : document,
-    schedule = setTimeout, cancel = clearTimeout, interval = 10000, timeout = 12000 }) {
+    schedule = setTimeout, cancel = clearTimeout, interval = 2000, timeout = 12000, clock = Date.now }) {
     let active = false;
+    let cachedSnapshot = null;
     let timer = null;
     let request = null;
     let generation = 0;
@@ -114,16 +119,22 @@ const SoundAtlasLive = (() => {
     async function poll() {
       if (!active || suspended()) return;
       const ticket = ++generation;
+      const started = clock();
       const controller = new AbortController();
       request = controller;
       let timedOut = false;
       const deadline = schedule(() => { timedOut = true; controller.abort(); }, timeout);
       try {
-        const response = await fetcher(url, { cache: 'no-store', signal: controller.signal, credentials: 'same-origin' });
+        const requestUrl = cachedSnapshot?.historyRevision ? url + (url.includes('?') ? '&' : '?') + 'history=' + encodeURIComponent(cachedSnapshot.historyRevision) : url;
+        const response = await fetcher(requestUrl, { cache: 'no-store', signal: controller.signal, credentials: 'same-origin' });
         if (!response.ok) throw new Error('实时服务暂时不可用。');
         const payload = await response.json();
         if (!active || ticket !== generation || suspended()) return;
-        const snapshot = normalizeSnapshot(payload);
+        const reuseHistory = payload.historyUnchanged === true && cachedSnapshot && payload.historyRevision === cachedSnapshot.historyRevision;
+        if (payload.historyUnchanged && !reuseHistory) { cachedSnapshot = null; throw new Error('正在重新读取历史记录。'); }
+        const snapshot = normalizeSnapshot(reuseHistory ? {...payload, days: []} : payload);
+        if (reuseHistory) snapshot.days = cachedSnapshot.days;
+        cachedSnapshot = snapshot;
         failures = 0;
         onSnapshot(snapshot);
       } catch (error) {
@@ -135,7 +146,7 @@ const SoundAtlasLive = (() => {
         cancel(deadline);
         if (ticket === generation) {
           request = null;
-          if (active && !suspended()) timer = schedule(poll, Math.min(60000, interval * 2 ** failures));
+          if (active && !suspended()) timer = schedule(poll, failures ? Math.min(60000, interval * 2 ** failures) : Math.max(0, interval - (clock() - started)));
         }
       }
     }
@@ -153,5 +164,19 @@ const SoundAtlasLive = (() => {
     };
   }
 
-  return { periodAt, normalizeSnapshot, selectPeriod, connectionState, createPoller };
+  function currentFrame(snapshot, now = Date.now()) {
+    const sound = {}, timestamps = {};
+    const fresh = connectionState(snapshot, false, now).fresh;
+    if (fresh && snapshot.plan.state === 'recording') {
+      for (const id of ids) {
+        const stamp = snapshot.latestTimes[id];
+        const age = stamp ? now - Date.parse(stamp) : Infinity;
+        if (snapshot.nodes.find(node => node.id === id)?.status === 'online' && age >= -5000 && age <= 75000 && Number.isFinite(snapshot.latestSound[id])) {
+          sound[id] = snapshot.latestSound[id]; timestamps[id] = stamp;
+        }
+      }
+    }
+    return {sound, timestamps, realtime: true};
+  }
+  return { periodAt, normalizeSnapshot, selectPeriod, connectionState, createPoller, currentFrame };
 })();

@@ -184,6 +184,7 @@ class SnapshotBuilder:
                     }
                     live_values = {}
                     live_stamps = []
+                    live_times = {}
                     nodes = []
                     for raw_id in NODE_MAP:
                         public_id, label = location_at(raw_id, now_ms)
@@ -211,6 +212,7 @@ class SnapshotBuilder:
                                     continue
                                 live_values[public_id] = round(adjusted, 3)
                                 live_stamps.append(stamp)
+                                live_times[public_id] = iso_time(stamp / 1000)
                                 break
                     db.execute("COMMIT")
                 except BaseException:
@@ -252,6 +254,8 @@ class SnapshotBuilder:
                 "latest": {
                     "timestamp": iso_time(max(live_stamps) / 1000) if live_stamps else None,
                     "sound": live_values,
+                    "timestamps": live_times,
+                    "samplePeriodSeconds": 1,
                 },
             }
 
@@ -311,7 +315,7 @@ def post_snapshot(endpoint, token, snapshot):
 class LiveBridge:
     """Background publisher. Starting it never changes the collection plan."""
 
-    def __init__(self, db_path, config_path=None, *, snapshot_seconds=10, publish_seconds=30, poster=post_snapshot):
+    def __init__(self, db_path, config_path=None, *, snapshot_seconds=1, publish_seconds=2, poster=post_snapshot):
         self.builder = SnapshotBuilder(db_path)
         self.config_path = Path(config_path) if config_path else Path(db_path).with_name("live_bridge_config.json")
         self.snapshot_seconds = snapshot_seconds
@@ -322,6 +326,7 @@ class LiveBridge:
         self._lock = threading.RLock()
         self._publish_lock = threading.Lock()
         self._last_payload = None
+        self._published_signature = None
         self._last_success = None
         self._last_attempt = None
         self._next_attempt = 0.0
@@ -384,12 +389,20 @@ class LiveBridge:
                 self._last_payload = payload
             if not force and now < self._next_attempt:
                 return False
+            # Publish changed readings promptly; unchanged state needs only a 30 s heartbeat.
+            content_signature = hashlib.sha256(json.dumps(
+                {key: value for key, value in payload.items() if key != "generatedAt"},
+                sort_keys=True, separators=(",", ":"), allow_nan=False,
+            ).encode()).hexdigest()
+            if not force and content_signature == self._published_signature and self._last_success is not None and now - self._last_success < 30:
+                return False
             with self._lock:
                 self._last_attempt = now
             self._set_state("syncing", "正在同步公桌与个人工位的声级摘要。")
             self._poster(config["endpoint"], config["token"], payload)
             with self._lock:
                 self._last_success = now
+                self._published_signature = content_signature
                 self._failures = 0
                 self._next_attempt = now + self.publish_seconds
             self._set_state("online", "已连接展示站，数据自动同步。")

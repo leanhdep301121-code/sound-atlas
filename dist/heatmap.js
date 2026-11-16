@@ -188,7 +188,7 @@ function drawHeatmap(frame) {
   if(!active){stopHeatmapAnimation();heatmapTargetKey=null;heatmapHasData=false;return;}
   const field=heatmapField(frame);
   byId('heatmap-count').textContent=field.count+' / '+TABLES.length+' 个测点';
-  byId('heatmap-note').textContent=field.hasData?'监测工位与内走廊的插值估计，未模拟墙体传播。颜色渐变仅用于切换效果，读数仍为所选时段的实测统计。':'这一时段不足两个有效声级测点，热力分布暂空。';
+  byId('heatmap-note').textContent=field.hasData?(frame.realtime?'各测点最新读数的空间插值，采样时间可能不同；未模拟墙体传播。':'监测工位与内走廊的插值估计，未模拟墙体传播。颜色渐变仅用于切换效果，读数仍为所选时段的实测统计。'):'这一时段不足两个有效声级测点，热力分布暂空。';
   canvas.setAttribute('aria-label',field.hasData?clockLabel(state.slot)+' 噪声热力分布，由 '+field.count+' 个测点进行声能距离加权插值。':clockLabel(state.slot)+' 热力图无足够数据。');
   if(field.key!==heatmapTargetKey){
     const animate=heatmapHasData&&field.hasData&&!document.hidden&&!(typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches);

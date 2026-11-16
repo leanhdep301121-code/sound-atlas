@@ -152,7 +152,7 @@ class SnapshotTests(unittest.TestCase):
         snapshot = self.builder.build(self.now)
         self.assertEqual([d["label"] for d in snapshot["days"]], ["2026-11-13", "2026-11-14"])
         self.assertEqual(self.frame(snapshot)["sound"], {})
-        self.assertEqual(snapshot["latest"], {"timestamp": None, "sound": {}})
+        self.assertEqual(snapshot["latest"], {"timestamp": None, "sound": {}, "timestamps": {}, "samplePeriodSeconds": 1})
 
     def test_online_heartbeat_does_not_make_stale_measurement_live(self):
         self.add("N1", self.now - 100, 51, online=True)
@@ -233,15 +233,18 @@ class SnapshotTests(unittest.TestCase):
         bridge = LiveBridge(self.path, config_path, poster=lambda endpoint, token, payload: sent.append(payload))
         try:
             self.assertTrue(bridge.publish_once(now=self.now))
+            self.assertFalse(bridge.publish_once(now=self.now + 1))
+            self.add("N3", self.now + 1, 50, online=True)
+            self.assertTrue(bridge.publish_once(now=self.now + 2))
             self.assertFalse(bridge.publish_once(now=self.now + 10))
-            self.assertTrue(bridge.publish_once(now=self.now + 30))
-            self.assertEqual(len(sent), 2)
+            self.assertTrue(bridge.publish_once(now=self.now + 32))
+            self.assertEqual(len(sent), 3)
             self.assertEqual(bridge.status()["state"], "online")
             bridge._poster = lambda *args: (_ for _ in ()).throw(RuntimeError(secret))
-            self.assertFalse(bridge.publish_once(now=self.now + 60))
+            self.assertFalse(bridge.publish_once(now=self.now + 62))
             self.assertEqual(bridge.status()["state"], "retrying")
             self.assertNotIn(secret, json.dumps(bridge.status()))
-            self.assertFalse(bridge.publish_once(now=self.now + 61))
+            self.assertFalse(bridge.publish_once(now=self.now + 63))
         finally:
             bridge.stop()
 
