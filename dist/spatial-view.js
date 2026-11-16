@@ -9,13 +9,17 @@ const VIEW_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), 
 const VIEW_UP = new THREE.Vector3().crossVectors(VIEW_DIRECTION, VIEW_RIGHT).normalize();
 const WORK_AREA = new THREE.Box3(new THREE.Vector3(16.8, 0, -21.2), new THREE.Vector3(41.5, 3.2, -2.3));
 
-async function readJson(url, description) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(description + '加载失败，请刷新后重试。');
-  try {
-    return await response.json();
-  } catch {
-    throw new Error(description + '格式无法读取，请刷新后重试。');
+async function readJson(url, description, timeout = 20000) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, { signal: controller.signal, cache: attempt ? 'reload' : 'default' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return await response.json();
+    } catch {
+      if (attempt === 1) throw new Error(description + '未能下载，请检查网络后点击重新加载。');
+    } finally { clearTimeout(timer); }
   }
 }
 
@@ -115,6 +119,8 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
   Object.assign(markerLayer.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden' });
   container.append(markerLayer);
   const textureCache = new Map();
+  const textureRequests = new Map();
+  let textureFailures = 0;
   const geometryResources = new Set();
   const materialResources = new Set();
   let environmentTarget = null;
@@ -308,44 +314,58 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
   geometryResources.add(heatGeometry);
 
   try {
-    const [model, textureDefinitions] = await Promise.all([readJson(MODEL_URL, '三维模型'), readJson(MATERIALS_URL, '三维材质')]);
+    const definitionsReady = readJson(MATERIALS_URL, '三维材质', 6000).catch(() => { textureFailures++; return {}; });
+    const model = await readJson(MODEL_URL, '三维模型');
+    const pendingMaterials = [];
     if (!Array.isArray(model.meshes) || model.meshes.length === 0 || !Array.isArray(model.materials)) throw new Error('三维模型数据不完整。');
     const textureLoader = new THREE.TextureLoader();
     async function loadTexture(path, colorMap = false) {
-      if (!path) return null;
+      if (!path || disposed) return null;
       const key = path + (colorMap ? ':color' : ':data');
-      if (textureCache.has(key)) return textureCache.get(key);
-      const texture = await textureLoader.loadAsync(new URL(path, import.meta.url).href);
-      if (disposed) {
-        texture.dispose();
-        throw new Error('三维视图已关闭。');
-      }
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      texture.colorSpace = colorMap ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-      textureCache.set(key, texture);
-      return texture;
+      if (textureRequests.has(key)) return textureRequests.get(key);
+      const request = (async () => {
+        for (let attempt = 0; attempt < 2 && !disposed; attempt++) {
+          let timer, expired = false;
+          try {
+            const pending = textureLoader.loadAsync(new URL(path, import.meta.url).href).then(texture => {
+              if (expired || disposed) { texture.dispose(); return null; }
+              return texture;
+            });
+            const texture = await Promise.race([pending, new Promise((_, reject) => {
+              timer = setTimeout(() => { expired = true; reject(new Error('Texture timeout')); }, 6000);
+            })]);
+            if (!texture || disposed) return null;
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+            texture.colorSpace = colorMap ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+            textureCache.set(key, texture);
+            return texture;
+          } catch {
+            // Texture detail is optional. Keep the geometry and its base material visible.
+          } finally { clearTimeout(timer); }
+        }
+        textureFailures++;
+        return null;
+      })();
+      textureRequests.set(key, request);
+      return request;
     }
 
     for (const definition of model.materials) {
-      const textureDefinition = textureDefinitions[definition.textureKey] ?? {};
+      // Physical sizes match the bundled material manifest; detail maps arrive after first paint.
+      const textureSize = { floor: [3, 3], wood: [.5, .5], plaster: [1, 1] }[definition.textureKey] ?? [2, 2];
       const useWhitePlaster = definition.textureKey === 'plaster';
-      const [map, normalMap, roughnessMap] = await Promise.all([
-        loadTexture(useWhitePlaster || definition.useColorMap === false ? null : textureDefinition.colorMap, true),
-        loadTexture(textureDefinition.normalMap),
-        loadTexture(textureDefinition.roughnessMap),
-      ]);
       const opacity = definition.opacity ?? 1;
       const material = new THREE.MeshPhysicalMaterial({
         name: definition.name ?? String(definition.id),
         color: useWhitePlaster ? '#f1efea' : materialColor(definition.color),
-        map,
-        normalMap,
-        roughnessMap,
-        normalScale: new THREE.Vector2(...(definition.normalScale ?? textureDefinition.recommendedNormalScale ?? [.2, .2])),
-        roughness: definition.roughness ?? textureDefinition.roughness ?? .7,
-        metalness: definition.metalness ?? textureDefinition.metalness ?? 0,
+        map: null,
+        normalMap: null,
+        roughnessMap: null,
+        normalScale: new THREE.Vector2(...(definition.normalScale ?? [.2, .2])),
+        roughness: definition.roughness ?? .7,
+        metalness: definition.metalness ?? 0,
         transparent: opacity < 1,
         opacity,
         depthWrite: opacity >= 1,
@@ -360,13 +380,14 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
       for (const record of records) {
         if (!Array.isArray(record.positions) || record.positions.length % 3 || !Array.isArray(record.indices) || record.indices.length % 3 || record.indices.some(index => index < 0 || index >= record.positions.length / 3)) throw new Error('三维模型网格索引有误。');
       }
-      const geometry = mergeGeometry(records, textureDefinition.physicalSizeMeters ?? [2, 2]);
+      const geometry = mergeGeometry(records, textureSize);
       geometryResources.add(geometry);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = definition.name ?? String(definition.id);
       mesh.castShadow = opacity >= .7;
       mesh.receiveShadow = true;
       modelGroup.add(mesh);
+      pendingMaterials.push({definition, material, useWhitePlaster});
     }
     if (!modelGroup.children.length) throw new Error('三维模型缺少可显示的材质网格。');
 
@@ -423,6 +444,25 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
     renderer.shadowMap.needsUpdate = true;
     resize();
     onStatus('拖动旋转，滚轮缩放，右键平移');
+    // Do not hold the building hostage to optional images or a slow material manifest.
+    void definitionsReady.then(async textureDefinitions => {
+      await Promise.all(pendingMaterials.map(async ({definition, material, useWhitePlaster}) => {
+        if (disposed) return;
+        const details = textureDefinitions[definition.textureKey] ?? {};
+        const [map, normalMap, roughnessMap] = await Promise.all([
+          loadTexture(useWhitePlaster || definition.useColorMap === false ? null : details.colorMap, true),
+          loadTexture(details.normalMap), loadTexture(details.roughnessMap),
+        ]);
+        if (disposed) return;
+        Object.assign(material, {map, normalMap, roughnessMap});
+        material.normalScale.set(...(definition.normalScale ?? details.recommendedNormalScale ?? [.2, .2]));
+        material.roughness = definition.roughness ?? details.roughness ?? .7;
+        material.metalness = definition.metalness ?? details.metalness ?? 0;
+        material.needsUpdate = true;
+        invalidate();
+      }));
+      if (!disposed && textureFailures) onStatus('三维模型已显示，部分纹理暂未加载。拖动旋转，滚轮缩放。');
+    }).catch(() => { if (!disposed) onStatus('三维模型已显示，纹理暂未加载。'); });
   } catch (error) {
     dispose();
     throw new Error(error.message || '三维视图加载失败，请刷新后重试。');
