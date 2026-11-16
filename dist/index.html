@@ -9,7 +9,7 @@ try {
   document.documentElement.dataset.theme = localStorage.getItem('sound-atlas-theme') === 'dark' ? 'dark' : 'light';
 } catch { document.documentElement.dataset.theme = 'light'; }
 </script>
-<link rel="stylesheet" href="styles.css?v=readable-trends">
+<link rel="stylesheet" href="styles.css?v=fullscreen-map">
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
 <link rel="modulepreload" href="spatial-view.js?v=mesh-binary">
 <script src="data.js?v=minute-playback" defer></script><script src="live.js?v=fast-live" defer></script><script src="motion.js?v=minute-playback" defer></script><script src="heatmap.js?v=fast-live" defer></script><script src="trends.js?v=readable-trends" defer></script><script src="summary.js" defer></script><script src="app.js?v=fast-live" defer></script>

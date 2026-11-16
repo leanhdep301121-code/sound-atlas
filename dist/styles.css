@@ -204,6 +204,7 @@ button:disabled { opacity: .35; cursor: default; }
 .spatial-workspace.is-expanded .map-viewport { height: 100%; min-height: 0; }
 .spatial-workspace.is-expanded > :not(.map-stage) { flex-shrink: 0; }
 .spatial-workspace.is-expanded .inspection { display: none; }
+.spatial-workspace.is-expanded .workspace-trends { display: none; }
 .spatial-workspace.is-expanded .map-caption { display: none; }
 @media (max-height: 650px) {
   .spatial-workspace.is-expanded { overflow-y: auto; }
