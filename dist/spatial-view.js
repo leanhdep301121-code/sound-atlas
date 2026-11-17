@@ -41,7 +41,7 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
   }
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#f3f4f5');
+  scene.background = new THREE.Color('#ffffff');
   const modelGroup = new THREE.Group();
   modelGroup.name = 'Rhino 二层模型';
   scene.add(modelGroup);
@@ -84,6 +84,8 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
   const materialResources = new Set();
   let environmentTarget = null;
   let groundMaterial = null;
+  let groundShadowMaterial = null;
+  let groundMesh = null;
   let themeBackground = null;
   let themeGround = null;
   let visible = true;
@@ -115,8 +117,8 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
   function syncTheme() {
     if (disposed) return;
     const styles = getComputedStyle(document.documentElement);
-    const background = styles.getPropertyValue('--scene-background').trim() || '#f3f4f5';
-    const ground = styles.getPropertyValue('--scene-ground').trim() || '#e9ecef';
+    const background = styles.getPropertyValue('--scene-background').trim() || '#ffffff';
+    const ground = styles.getPropertyValue('--scene-ground').trim() || '#ffffff';
     let changed = false;
     if (background !== themeBackground) {
       scene.background.set(background);
@@ -127,6 +129,14 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
       groundMaterial.color.set(ground);
       themeGround = ground;
       changed = true;
+    }
+    if (groundMesh) {
+      // A shadow-only catcher keeps the light canvas white under tone mapping.
+      const material = styles.colorScheme === 'light' ? groundShadowMaterial : groundMaterial;
+      if (groundMesh.material !== material) {
+        groundMesh.material = material;
+        changed = true;
+      }
     }
     if (changed) invalidate();
   }
@@ -372,13 +382,15 @@ export async function createSpatialView({ container, nodes, onSelect = () => {},
 
     const groundGeometry = new THREE.PlaneGeometry(180, 140);
     groundMaterial = new THREE.MeshStandardMaterial({ color: '#e9ecef', roughness: 1, metalness: 0 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    groundShadowMaterial = new THREE.ShadowMaterial({ color: '#000000', opacity: .16, depthWrite: false });
+    const ground = groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(center.x, bounds.min.y - .025, center.z);
     ground.receiveShadow = true;
     scene.add(ground);
     geometryResources.add(groundGeometry);
     materialResources.add(groundMaterial);
+    materialResources.add(groundShadowMaterial);
     syncTheme();
 
     for (const node of nodes) {

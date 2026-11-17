@@ -1,13 +1,13 @@
 @font-face { font-family: "Instrument Sans"; src: url("assets/instrument-sans.ttf") format("truetype"); font-style: normal; font-weight: 400; font-display: swap; }
 :root {
   color-scheme: light;
-  --page: #f7f8fa; --surface: #fdfdfe; --paper: #eef0f3; --ink: #232630;
+  --page: #fff; --surface: #fff; --paper: #fff; --ink: #232630;
   --muted: #69707e; --line: #e0e3e9; --strong-line: #b8bec8;
   --accent: #c94e27; --accent-bright: #ec7951; --accent-text: #fff8f3; --accent-soft: #faeae2;
   --flow-ink: #8491a4; --mono: 'Instrument Sans','Arial',sans-serif;
   --map-background: #fff; --plan-filter: none;
   --map-point-shadow: 0 3px 8px #182d4930;
-  --scene-background: #f3f4f5; --scene-ground: #e9ecef;
+  --scene-background: #fff; --scene-ground: #fff;
 }
 :root[data-theme="dark"] {
   color-scheme: dark; --page: #191c23; --surface: #232730; --paper: #1f232c;
