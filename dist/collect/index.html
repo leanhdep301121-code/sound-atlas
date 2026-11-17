@@ -3,21 +3,22 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex,nofollow"><title>数据采集 · 声场 SOUND ATLAS</title>
 <script src="collect-theme.js"></script>
-<link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="collect.css"><script type="module" src="collect.js?v=six-devices"></script>
-</head><body>
+<link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="collect.css"><script type="module" src="collect.js?v=public-view"></script>
+</head><body data-access="viewer">
 <a class="skip-link" href="#collector-main">跳到采集管理</a>
 <header class="topbar">
   <a class="brand" href="../" aria-label="声场首页"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>声场<span class="wordmark">SOUND ATLAS</span></span></a>
   <nav aria-label="站点导航"><a href="../">声环境图</a><a href="./" class="nav-active" aria-current="page">数据采集</a></nav>
-  <div class="nav-actions"><button class="theme-button" type="button" id="collector-theme">明暗</button><button class="button button-outline" type="button" id="logout" hidden>退出管理</button></div>
+  <div class="nav-actions"><button class="theme-button" type="button" id="collector-theme">明暗</button><button class="button button-outline" type="button" id="enter-management">管理操作</button><button class="button button-outline" type="button" id="logout" hidden>退出管理</button></div>
 </header>
 <main class="collector-shell" id="collector-main">
   <header class="collector-header"><div><span class="eyebrow">SOUND ATLAS / COLLECT</span><h1>数据采集</h1><p>六个测点，一屏查看声级、连接与采集进度。</p></div><a class="view-link" href="../">查看声环境图 <span aria-hidden="true">↗</span></a></header>
-  <section class="login-panel" id="login-panel" aria-labelledby="login-heading">
-    <div class="login-copy"><span class="small-label">管理入口</span><h2 id="login-heading">连接你的观测。</h2><p>登录后查看设备、安排采集，并管理公桌与个人工位的观测记录。</p><p class="login-note">展示页面可直接分享，采集操作仅向管理者开放。</p></div>
-    <form id="login-form"><label for="admin-key">管理口令</label><input id="admin-key" type="password" autocomplete="current-password" required maxlength="256" placeholder="输入管理口令"><p class="field-note">口令保存在采集电脑的管理访问文件中。</p><button class="button button-primary" type="submit" id="login-button">进入采集管理 <span aria-hidden="true">↗</span></button><p id="login-status" role="status">正在检查登录状态…</p></form>
-  </section>
-  <div id="admin-app" hidden>
+  <dialog class="management-login" id="login-panel" aria-labelledby="login-heading"><button type="button" class="text-button login-close" id="login-close" aria-label="关闭管理验证">关闭</button>
+    <div class="login-copy"><span class="small-label">管理入口</span><h2 id="login-heading">进入管理模式</h2><p>查看数据无需登录。修改采集计划、校准和处理记录时，请验证管理身份。</p><p class="login-note">退出管理后仍可继续查看实时与历史数据。</p></div>
+    <form id="login-form"><label for="admin-key">管理口令</label><input id="admin-key" type="password" autocomplete="current-password" required maxlength="256" placeholder="输入管理口令"><p class="field-note">口令保存在采集电脑的管理访问文件中。</p><button class="button button-primary" type="submit" id="login-button">进入采集管理 <span aria-hidden="true">↗</span></button><p id="login-status" role="status"></p></form>
+  </dialog>
+  <div id="admin-app">
+    <p class="access-notice" id="access-notice">公开查看 · 实时与历史数据自动更新。修改计划、校准或处理记录，请点击右上角“管理操作”。</p>
     <section class="collector-connection" aria-label="采集端连接状态"><div><span class="collector-dot" id="connection-dot"></span><strong id="connection-title">正在连接采集端</strong><span id="connection-message">正在读取状态…</span></div><div class="connection-actions"><span id="last-sync">—</span><button class="button button-outline" id="refresh-state" type="button">刷新</button></div></section>
     <nav class="collector-tabs" aria-label="采集管理栏目"><button type="button" data-tab="overview" aria-current="page">实时监测</button><button type="button" data-tab="plan">采集计划</button><button type="button" data-tab="manage">数据管理</button><button type="button" data-tab="calibration">五分钟校准</button></nav>
     <p class="operation-status" id="operation-status" role="status" hidden></p>

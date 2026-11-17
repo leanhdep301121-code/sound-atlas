@@ -16,7 +16,7 @@ const num = value => Number(value || 0).toLocaleString('zh-CN');
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const planNames = {none:'未设置',waiting:'等待开始',recording:'正在采集',finished:'已结束'};
 const actionNames = {overview:'读取观测总览',series:'读取声级曲线',count:'统计选定记录',suspects:'检查可疑数据',plan:'保存采集计划',exclude:'排除选定时段',unexclude:'撤销排除',export:'导出观测记录',purge:'核对与处理删除',calibration:'处理校准任务'};
-let authenticated=false, state=null, currentTab='overview', statePending=false, busy=false, planDirty=false;
+let authenticated=true, canManage=false, state=null, currentTab='overview', statePending=false, busy=false, planDirty=false;
 let series=null, selection=null, selectedNodes=new Set(TABLES.map(table=>table.node));
 let dataLoaded=false, exportController=null, chartDrag=null, nodeApplyTimer=null;
 let confirmResolve=null, confirmRequired='';
@@ -28,17 +28,27 @@ let appliedQuery=null, nodeFilterSignature='', countTimer=null, countGeneration=
 function operation(message, error=false) { $('operation-status').textContent=message; $('operation-status').hidden=!message; $('operation-status').dataset.error=String(error); }
 const client=createAdminClient({onProgress:({action,status})=>operation((actionNames[action]||'操作')+' · '+(status==='running'?'采集端正在执行…':'已发送，等待采集端执行…'))});
 
-function showLogin(message='') {
-  authenticated=false;state=null;sessionGeneration++;appliedQuery=null;countGeneration++;queryGeneration++;queryController?.abort();manageLiveView=null;viewRevisionFetched=null;queryPending=false;dataLoaded=false;series=null;selection=null;lastFollowVersion='';followData=true;$('login-panel').hidden=false;$('admin-app').hidden=true;$('logout').hidden=true;
-  $('login-status').textContent=message;$('login-status').dataset.error=String(Boolean(message));
+function setAccess(manager) {
+  canManage=Boolean(manager);
+  document.body.dataset.access=canManage?'manager':'viewer';
+  $('logout').hidden=!canManage;$('enter-management').hidden=canManage;
+  $('access-notice').hidden=canManage;
 }
+function showLogin(message='') {
+  $('login-status').textContent=message;$('login-status').dataset.error=String(Boolean(message));
+  if(!$('login-panel').open)$('login-panel').showModal();
+  $('admin-key').focus();
+}
+$('enter-management').addEventListener('click',()=>showLogin());
+$('login-close').addEventListener('click',()=>$('login-panel').close());
+$('login-panel').addEventListener('close',()=>{$('admin-key').value='';});
 function errorMessage(error) {
   if(error?.name==='AbortError') return '已停止等待此查询。';
   if(error?.commandId && /fetch|network|网络|连接/i.test(error.message)) return '连接中断，操作可能已送达。请先刷新确认结果，勿重复提交。';
   return error?.message || '操作暂未完成，请稍后重试。';
 }
 function handleError(error) {
-  if(error?.status===401){showLogin('登录已失效，请重新输入管理口令。');return;}
+  if(error?.status===401){setAccess(false);showLogin('管理登录已失效，查看数据不受影响。请重新验证后执行管理操作。');return;}
   operation(errorMessage(error),true);
 }
 function setBusy(value) {
@@ -50,6 +60,7 @@ function setBusy(value) {
 }
 function requireOnline() { if(!state?.connected)throw new AdminError('采集电脑当前离线，恢复连接后可进行操作。'); }
 async function perform(action,payload,{success='',signal}={}) {
+  if(!canManage&&['plan','exclude','unexclude','purge','calibration'].includes(action))throw new AdminError('请先进入管理模式。',401);
   if(['exclude','unexclude','purge','export','suspects'].includes(action))pauseDataFollow('已暂停自动更新，操作范围已锁定。');
   requireOnline();
   if(busy)throw new AdminError('请等待当前操作完成。');
@@ -159,11 +170,11 @@ async function refreshState(silent=false) {
 
 $('login-form').addEventListener('submit',async event=>{
   event.preventDefault();$('login-button').disabled=true;$('login-status').textContent='正在验证…';$('login-status').dataset.error='false';
-  try{const session=await client.login($('admin-key').value);if(!session.authenticated)throw new AdminError('未能登录，请检查管理口令。');$('admin-key').value='';authenticated=true;$('login-panel').hidden=true;$('admin-app').hidden=false;$('logout').hidden=false;await refreshState();}
+  try{const session=await client.login($('admin-key').value);if(!session.authenticated)throw new AdminError('未能登录，请检查管理口令。');$('admin-key').value='';setAccess(true);$('login-panel').close();await refreshState();}
   catch(error){$('login-status').textContent=errorMessage(error);$('login-status').dataset.error='true';}
   finally{$('login-button').disabled=false;}
 });
-$('logout').addEventListener('click',async()=>{try{await client.logout();showLogin();series=null;selection=null;dataLoaded=false;operation('');}catch(error){handleError(error);}});
+$('logout').addEventListener('click',async()=>{try{await client.logout();setAccess(false);operation('已退出管理，仍可查看实时与历史数据。');await refreshState(true);}catch(error){handleError(error);}});
 $('refresh-state').addEventListener('click',()=>refreshState());
 $('collector-theme').addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('sound-atlas-theme',theme);}catch{}drawChart();});
 document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
@@ -567,4 +578,4 @@ $('purge-range').addEventListener('click',()=>purge('range'));$('purge-outside')
 setInterval(()=>refreshState(true),1000);
 setInterval(()=>{if(authenticated&&!document.hidden){renderMonitor();renderCalibration();}},1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshState(true);});
-(async()=>{try{const session=await client.session();if(!session.authenticated){showLogin();return;}authenticated=true;$('login-panel').hidden=true;$('admin-app').hidden=false;$('logout').hidden=false;await refreshState();}catch(error){showLogin(errorMessage(error));}})();
+(async()=>{try{const session=await client.session();setAccess(session.authenticated);}catch{setAccess(false);}await refreshState();})();

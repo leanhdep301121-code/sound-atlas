@@ -44,9 +44,7 @@ test('collector request has its own bounded JSON body without changing public in
   await assert.rejects(readControlJson(new Request('https://example.test',{method:'POST',body:'not-json'})),error=>error.status===400);
   assert.deepEqual(await readControlJson(new Request('https://example.test',{method:'POST',body:'{"action":"poll"}'})),{action:'poll'});
 });
-test('unauthenticated public callers cannot read admin state or submit collector results',async()=>{
-  const admin=await adminStateGet(new Request('https://example.test/api/admin-state'));
-  assert.ok([401,503].includes(admin.status));
+test('public viewing does not permit unauthenticated collector result submission',async()=>{
   const collector=await collectorPost(new Request('https://example.test/api/collector-control',{method:'POST',body:'{}'}));
   assert.equal(collector.status,401);
 });
