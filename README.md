@@ -4,7 +4,7 @@
 
 **[打开网站](https://www.alecyin.icu/sound-atlas/)** · **[采集管理](https://www.alecyin.icu/sound-atlas/collect/)**
 
-展示页面可公开访问。采集管理需要所有者的私有管理口令，口令不在此仓库中。
+展示和采集数据查看可公开访问。修改采集计划、校准和处理记录需要所有者的私有管理口令，口令不在此仓库中。
 
 ## 功能
 
@@ -78,7 +78,11 @@ cd collector
 python receiver.py
 ```
 
-本机界面为 `http://localhost:8000/`，采集计划在 `/control`，数据管理在 `/manage`。Windows 也可使用本目录内的启动、停止 PowerShell 脚本。
+本机入口为 `http://localhost:8000/`，自动进入 `/sound-atlas/collect/`。它使用 `dist/collect` 的同一套网页，实时监测、历史查询、CSV 导出、采集计划和校准直接访问本机数据库，不依赖云端 Redis。空间展示页位于 `/sound-atlas/`。Windows 也可使用本目录内的启动、停止 PowerShell 脚本。
+
+在本仓库中启动时会直接使用相邻的 `dist` 文件；若将采集端单独放在其他目录，可运行 `python sync_local_web.py <网站dist目录>` 同步网页到本机 `web/`，网站界面更新后再次运行即可。仅网页静态资源会被复制，不复制密钥或数据库。
+
+本机查看无需登录；管理模式读取采集目录的私有 `管理登录口令.txt`（独立一行的 43 位随机口令），使用本机会话和请求验证。写操作保存在独立的 `local_commands.db` 中用于防止重复执行，云端不可用时仍可管理。该文件及口令文件均不应上传到公开仓库。
 
 设备继续通过本机服务的 `/upload` 上传，使用 `/config` 与 `/time` 同步计划和时间。此仓库包含接收端，不包含硬件固件。
 

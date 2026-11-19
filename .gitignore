@@ -17,3 +17,5 @@ node_modules/
 **/管理登录口令.txt
 .DS_Store
 Thumbs.db
+
+collector/web/

@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from live_bridge import LiveBridge
 from remote_control import RemoteControl
 from upload_protocol import UploadError, read_upload, decode_upload, node_hint
+from local_console import LocalConsole
 
 PORT = int(os.environ.get("SOUND_ATLAS_PORT", "8000"))
 DB_PATH = Path(os.environ.get("SOUND_ATLAS_DB", str(Path(__file__).with_name("noise.db")))).resolve()
@@ -39,6 +40,7 @@ BACKUP_DIR = DB_PATH.parent / "backups"
 STATIC_DIR = Path(__file__).with_name("static")
 SYNC_BRIDGE = None
 REMOTE_CONTROL = None
+LOCAL_CONSOLE = None
 BANDS = ["b63", "b125", "b250", "b500", "b1k", "b2k", "b4k", "b8k"]   # 倍频程频带（63 Hz–8 kHz）
 COLUMNS = ["laeq", "lafmax"] + BANDS
 # 节点上传每行的数值顺序（63 Hz、8 kHz 是后加的，放在最后；旧版节点只传前 8 个）
@@ -1159,6 +1161,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"error": f"出错了：{e}"}, 500)
 
     def do_GET(self):
+        if LOCAL_CONSOLE and LOCAL_CONSOLE.handle(self):
+            return
         path = urlparse(self.path).path
         static_types = {"collector.css": "text/css; charset=utf-8", "collector.js": "text/javascript; charset=utf-8", "instrument-sans.ttf": "font/ttf"}
         asset = path.removeprefix("/static/")
@@ -1205,6 +1209,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_text(404, "not found")
 
     def do_POST(self):
+        if LOCAL_CONSOLE and LOCAL_CONSOLE.handle(self):
+            return
         path = urlparse(self.path).path
         if path in ("/plan", "/api/exclude", "/api/unexclude", "/api/purge"):
             origin = self.headers.get("Origin")
@@ -1231,6 +1237,11 @@ class Handler(BaseHTTPRequestHandler):
             self.run_api(fn, body)
         else:
             self.send_text(404, "not found")
+
+    def do_DELETE(self):
+        if LOCAL_CONSOLE and LOCAL_CONSOLE.handle(self):
+            return
+        self.send_json({"error": "接口不存在。"}, 404)
 
     def handle_upload(self):
         try:
@@ -1408,6 +1419,7 @@ if __name__ == "__main__":
     sync_config = os.environ.get("SOUND_ATLAS_SYNC_CONFIG", str(Path(__file__).with_name("live_bridge_config.json")))
     SYNC_BRIDGE = LiveBridge(DB_PATH, config_path=sync_config).start()
     REMOTE_CONTROL = RemoteControl(sys.modules[__name__], config_path=sync_config).start()
+    LOCAL_CONSOLE = LocalConsole(sys.modules[__name__])
     print(" 声场展示站同步已启动，采集数据仍保存在本机。", flush=True)
     print(" 站内采集管理：https://www.alecyin.icu/sound-atlas/collect/", flush=True)
     try:
@@ -1415,6 +1427,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n已停止")
     finally:
+        LOCAL_CONSOLE.close()
         REMOTE_CONTROL.stop()
         SYNC_BRIDGE.stop()
         server.server_close()
