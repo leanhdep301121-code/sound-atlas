@@ -134,3 +134,8 @@ button:focus-visible,a:focus-visible,select:focus-visible,canvas:focus-visible,s
 .observation-rail .inspection,.observation-rail .comparison{flex-shrink:0}
 .trend-controls select{border:0;border-radius:20px;background:var(--paper);color:var(--ink);font:11px Manrope,'Microsoft YaHei UI',sans-serif;padding:7px 12px;min-height:30px}
 .trend-large-dialog #analysis-day{display:none}
+
+.timeline-caption #timeline-live{display:inline-flex;align-items:center;gap:7px;min-height:32px;border:1px solid var(--line);border-radius:18px;padding:5px 11px;background:var(--surface);color:var(--ink);font-size:11px;white-space:nowrap}
+.timeline-caption #timeline-live[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.timeline-caption #timeline-live[aria-pressed=true]::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
+@media(max-width:760px){.timeline .timeline-caption,.trend-large-dialog .timeline-caption{display:flex;grid-column:1/-1;align-items:center;gap:10px}.timeline-caption small{margin-top:0}}

@@ -11,7 +11,7 @@
 <link href="styles.css?v=trend-fullscreen" rel="stylesheet"/><link href="atlas.css?v=studio-01" rel="stylesheet"/>
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.js"}}</script>
 <link href="spatial-view.js?v=mesh-binary" rel="modulepreload"/>
-<script defer="" src="data.js?v=minute-playback"></script><script defer="" src="live.js?v=fast-live"></script><script defer="" src="motion.js?v=minute-playback"></script><script defer="" src="heatmap.js?v=fast-live"></script><script defer="" src="trends.js?v=readable-trends"></script><script defer="" src="summary.js"></script><script defer="" src="app.js?v=studio-01"></script>
+<script defer="" src="data.js?v=minute-playback"></script><script defer="" src="live.js?v=fast-live"></script><script defer="" src="motion.js?v=minute-playback"></script><script defer="" src="heatmap.js?v=fast-live"></script><script defer="" src="trends.js?v=readable-trends"></script><script defer="" src="summary.js"></script><script defer="" src="app.js?v=timeline-follow"></script>
 </head>
 <body class="atlas-redesign">
 <a class="skip-link" href="#observatory">跳到声环境图</a>
@@ -68,7 +68,7 @@
 <div class="timeline">
 <div class="time-control"><button aria-label="播放时间回放" class="play-button" id="play" type="button"><span aria-hidden="true" id="play-symbol">▶</span><span class="sr-only" id="play-text">播放</span></button><div><label class="sr-only" for="day">观测日期</label><select id="day"></select><output for="time-slider" id="time-output">14:30</output></div></div>
 <div class="timeline-track"><canvas aria-hidden="true" height="40" id="timeline-wave" width="800"></canvas><label class="sr-only" for="time-slider">观测时段</label><input id="time-slider" max="1439" min="0" step="0.01" type="range" value="870"/><div aria-hidden="true" class="ticks"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:59</span></div></div>
-<div class="timeline-caption"><span>时间回放</span><small>每分钟统计 · 平滑回放</small></div>
+<div class="timeline-caption"><button id="timeline-live" type="button" aria-pressed="true">实时跟随</button><small id="timeline-mode">正在连接采集端…</small></div>
 </div>
 </div>
 <div class="observation-rail"><aside aria-labelledby="inspection-heading" class="inspection">

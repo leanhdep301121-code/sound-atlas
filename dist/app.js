@@ -135,6 +135,12 @@ function renderSourceStatus() {
     : '';
   if(liveMode&&liveSnapshot?.correctionApplied)byId('live-detail').textContent+=' · 相对校正';
   byId('return-live').hidden = liveMode && followLive;
+  const following = liveMode && followLive;
+  byId('timeline-live').setAttribute('aria-pressed', String(following));
+  byId('timeline-live').textContent = following ? '实时跟随' : '返回实时';
+  byId('timeline-mode').textContent = following
+    ? connection.fresh ? '自动跟随当前时间' : '等待同步 · 读数未更新'
+    : liveMode ? '历史回放 · 时间已锁定' : '当前为离线数据';
   byId('refresh-live').hidden = !liveMode;
   byId('live-nodes').hidden = !liveMode;
   for (const node of OBSERVATION_NODES) {
@@ -629,6 +635,7 @@ byId('restore-demo').addEventListener('click', () => {
   status.textContent = '已切回演示数据。';
 });
 byId('return-live').addEventListener('click', returnToLive);
+byId('timeline-live').addEventListener('click', returnToLive);
 byId('use-live').addEventListener('click', returnToLive);
 byId('refresh-live').addEventListener('click', () => { liveRequestFailed = false; render(); livePoller.refresh(); });
 byId('download-template').addEventListener('click', () => {
